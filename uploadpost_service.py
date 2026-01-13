@@ -41,7 +41,7 @@ class UploadPostService:
                 form.add_field('platform', 'instagram')
                 
                 headers = {
-                    'Authorization': f'Bearer {self.api_token}'
+                    'Authorization': self.api_token
                 }
                 
                 async with session.post(self.api_url, data=form, headers=headers) as response:
@@ -91,7 +91,7 @@ class UploadPostService:
                 form.add_field('type', 'carousel')
                 
                 headers = {
-                    'Authorization': f'Bearer {self.api_token}'
+                    'Authorization': self.api_token
                 }
                 
                 async with session.post(self.api_url, data=form, headers=headers) as response:
@@ -133,7 +133,7 @@ class UploadPostService:
                 form.add_field('type', 'reel')
                 
                 headers = {
-                    'Authorization': f'Bearer {self.api_token}'
+                    'Authorization': self.api_token
                 }
                 
                 async with session.post(self.api_url, data=form, headers=headers) as response:
