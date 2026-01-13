@@ -29,14 +29,14 @@ class SubtitleService:
     async def generate_srt_from_audio(self, video_path: str, language: str = "es") -> str:
         """
         Generate SRT subtitle file from video audio using OpenAI Whisper
-        With segment-level timing (best available in all versions)
+        With 1-2 words per subtitle for karaoke effect
         
         Args:
             video_path: Path to video file
             language: Language code (es for Spanish)
         
         Returns:
-            SRT content as string with 2-3 words per subtitle
+            SRT content as string with 1-2 words per subtitle
         """
         try:
             logger.info(f"Generating SRT subtitles from video: {video_path}")
@@ -77,8 +77,8 @@ class SubtitleService:
             
             logger.info(f"Whisper transcription completed")
             
-            # Convert to SRT with 2-3 words per subtitle
-            srt_content = self._create_bookoly_style_srt(transcript)
+            # Convert to SRT with 1-2 words per subtitle (karaoke effect)
+            srt_content = self._create_karaoke_srt(transcript)
             
             logger.info(f"SRT generated successfully: {len(srt_content)} characters")
             return srt_content
@@ -87,13 +87,12 @@ class SubtitleService:
             logger.error(f"SRT generation failed: {str(e)}")
             raise
     
-    def _create_bookoly_style_srt(self, transcript) -> str:
+    def _create_karaoke_srt(self, transcript) -> str:
         """
-        Create SRT with 2-3 words per subtitle (Bookoly style)
-        Splits segments into smaller chunks
+        Create SRT with 1-2 words per subtitle (karaoke effect)
         
         Args:
-            transcript: Whisper verbose_json response with segment-level timing
+            transcript: Whisper verbose_json response
         
         Returns:
             SRT formatted string
@@ -119,11 +118,12 @@ class SubtitleService:
                 segment_duration = end_time - start_time
                 time_per_word = segment_duration / len(words) if len(words) > 0 else 0
                 
-                # Group words into chunks of 2-3
+                # Create subtitle for each 1-2 words
                 i = 0
                 while i < len(words):
-                    # Take 2-3 words
-                    chunk_size = min(3, len(words) - i)
+                    # Take 1-2 words randomly (more natural)
+                    chunk_size = 2 if i + 1 < len(words) and len(words[i]) < 6 else 1
+                    chunk_size = min(chunk_size, len(words) - i)
                     chunk = words[i:i+chunk_size]
                     
                     # Calculate timing for this chunk
@@ -149,29 +149,7 @@ class SubtitleService:
             return '\n'.join(srt_lines)
         
         except Exception as e:
-            logger.error(f"Failed to create Bookoly-style SRT: {str(e)}")
-            # Fallback to simple SRT
-            return self._create_simple_srt(transcript)
-    
-    def _create_simple_srt(self, transcript) -> str:
-        """Fallback: create simple SRT from segments"""
-        try:
-            segments = transcript.segments if hasattr(transcript, 'segments') else []
-            srt_lines = []
-            
-            for i, segment in enumerate(segments, 1):
-                start_srt = self._format_srt_time(segment['start'])
-                end_srt = self._format_srt_time(segment['end'])
-                text = segment['text'].strip().upper()
-                
-                srt_lines.append(f"{i}")
-                srt_lines.append(f"{start_srt} --> {end_srt}")
-                srt_lines.append(text)
-                srt_lines.append("")
-            
-            return '\n'.join(srt_lines)
-        except Exception as e:
-            logger.error(f"Failed to create simple SRT: {str(e)}")
+            logger.error(f"Failed to create karaoke SRT: {str(e)}")
             raise
     
     def _format_srt_time(self, seconds: float) -> str:
@@ -184,7 +162,7 @@ class SubtitleService:
     
     async def add_subtitles_to_video(self, video_data: bytes, srt_content: str = None) -> bytes:
         """
-        Add subtitles to video using FFmpeg with Bookoly styling
+        Add subtitles to video using FFmpeg
         
         Args:
             video_data: Video file as bytes
@@ -194,7 +172,7 @@ class SubtitleService:
             Video with subtitles as bytes
         """
         try:
-            logger.info(f"Adding Bookoly-style subtitles to video: {len(video_data)} bytes")
+            logger.info(f"Adding subtitles to video: {len(video_data)} bytes")
             
             # Create temporary files
             with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as video_file:
@@ -218,29 +196,28 @@ class SubtitleService:
             # Output path
             output_path = video_path.replace('.mp4', '_subtitled.mp4')
             
-            # Bookoly-style subtitle formatting
-            # White text, bold, large font, centered bottom
+            # Subtitle styling (small, white text with black outline, no background)
             subtitle_style = (
                 f"FontName=Arial Black,"
-                f"FontSize=28,"
+                f"FontSize=16,"
                 f"Bold=1,"
                 f"PrimaryColour=&H00FFFFFF,"  # White
                 f"OutlineColour=&H00000000,"  # Black outline
-                f"BorderStyle=3,"  # Box background
+                f"BorderStyle=1,"  # Outline + shadow (no box)
                 f"Outline=2,"  # Outline thickness
-                f"Shadow=0,"
+                f"Shadow=1,"  # Shadow
                 f"Alignment=2,"  # Bottom center
-                f"MarginV=80"  # 80px from bottom
+                f"MarginV=60"  # 60px from bottom
             )
             
-            logger.info(f"Adding Bookoly-style subtitles with FFmpeg...")
+            logger.info(f"Adding subtitles with FFmpeg...")
             
             # Add subtitles with FFmpeg
             ffmpeg_cmd = [
                 '/usr/bin/ffmpeg', '-i', video_path,
                 '-vf', f"subtitles={srt_path}:force_style='{subtitle_style}'",
                 '-c:a', 'copy',  # Copy audio without re-encoding
-                '-preset', 'fast',  # Faster encoding
+                '-preset', 'fast',
                 output_path,
                 '-y'
             ]
@@ -267,7 +244,7 @@ class SubtitleService:
             except Exception as cleanup_error:
                 logger.warning(f"Cleanup warning: {cleanup_error}")
             
-            logger.info(f"Bookoly-style subtitles added successfully: {len(subtitled_video)} bytes")
+            logger.info(f"Subtitles added successfully: {len(subtitled_video)} bytes")
             return subtitled_video
         
         except Exception as e:
