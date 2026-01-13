@@ -185,38 +185,44 @@ class ContentProcessor:
             
             logger.info(f"Video downloaded: {len(video_data)} bytes")
             
-            # Convert to MP4 if needed
+            # Convert to MP4 and get URL from CloudConvert
             convert_with_retry = self.error_handler.with_retry(
                 module_name="CloudConvert",
-                scenario="Converting video to MP4"
-            )(self.cloudconvert.convert_video_to_mp4)
+                scenario="Converting video to MP4 and getting URL"
+            )(self.cloudconvert.convert_video_to_mp4_url)
             
-            converted_video = await convert_with_retry(bytes(video_data), "video")
+            video_url = await convert_with_retry(bytes(video_data), "video")
             
-            logger.info("Video converted to MP4")
+            logger.info(f"Video converted and hosted at: {video_url}")
             
-            # Upload to temporary hosting for HeyGen
-            # (In production, you'd use a proper temporary storage)
-            # For now, we'll skip HeyGen and just add subtitles
+            # Translate video with HeyGen (includes subtitles)
+            translate_with_retry = self.error_handler.with_retry(
+                module_name="HeyGenTranslation",
+                scenario="Translating video with HeyGen"
+            )(self.heygen.translate_video)
             
-            # Add subtitles with FFmpeg
-            subtitle_with_retry = self.error_handler.with_retry(
-                module_name="SubtitleGeneration",
-                scenario="Adding subtitles to video"
-            )(self.subtitle.add_subtitles_to_video)
+            translated_video_url, _ = await translate_with_retry(video_url)
             
-            subtitled_video = await subtitle_with_retry(converted_video)
+            logger.info("Video translated with HeyGen (with subtitles)")
             
-            logger.info("Subtitles added to video")
+            # Download translated video
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(translated_video_url) as response:
+                    if response.status != 200:
+                        raise Exception(f"Failed to download translated video: {response.status}")
+                    final_video = await response.read()
+            
+            logger.info(f"Translated video downloaded: {len(final_video)} bytes")
             
             # Translate caption
-            translate_with_retry = self.error_handler.with_retry(
+            translate_caption_with_retry = self.error_handler.with_retry(
                 module_name="CaptionTranslation",
                 scenario="Translating video caption",
                 fallback_func=lambda: self.translation.translate_caption_openai_fallback(message.caption)
             )(self.translation.translate_caption)
             
-            translated_caption = await translate_with_retry(message.caption)
+            translated_caption = await translate_caption_with_retry(message.caption)
             
             # Truncate if needed
             if len(translated_caption) > CAPTION_MAX_LENGTH:
@@ -228,7 +234,7 @@ class ContentProcessor:
                 scenario="Publishing reel to Instagram"
             )(self.uploadpost.publish_reel)
             
-            await publish_with_retry(subtitled_video, translated_caption, "reel.mp4")
+            await publish_with_retry(final_video, translated_caption, "reel.mp4")
             
             logger.info("Reel published successfully to Instagram")
         
