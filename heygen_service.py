@@ -18,7 +18,7 @@ class HeyGenService:
     
     async def translate_video(self, video_url: str) -> tuple[str, str]:
         """
-        Translate video from Italian to Spanish using HeyGen
+        Translate video from Italian to Spanish using HeyGen with subtitles
         
         Args:
             video_url: URL of the video to translate (must be publicly accessible)
@@ -44,10 +44,11 @@ class HeyGenService:
                     "video_url": video_url,
                     "output_language": "Spanish",
                     "speaker_num": 1,
-                    "translate_audio_only": False
+                    "translate_audio_only": False,
+                    "enable_caption": True  # Enable subtitles
                 }
                 
-                logger.info(f"Submitting HeyGen translation request")
+                logger.info(f"Submitting HeyGen translation request with subtitles enabled")
                 
                 async with session.post(self.base_url, json=payload, headers=headers) as response:
                     if response.status not in [200, 202]:
@@ -93,10 +94,9 @@ class HeyGenService:
                         raise Exception(f"HeyGen translation failed: {error}")
                     
                     if status in ['completed', 'success'] and video_url_result:
-                        logger.info(f"HeyGen translation completed with URL")
+                        logger.info(f"HeyGen translation completed with subtitles")
                         
-                        # HeyGen provides the video, we'll generate SRT separately
-                        # For now, return empty SRT (we'll use FFmpeg to generate it from audio)
+                        # HeyGen has embedded the subtitles in the video
                         srt_content = ""
                         
                         return video_url_result, srt_content
