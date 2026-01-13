@@ -37,7 +37,7 @@ class UploadPostService:
                 form = aiohttp.FormData()
                 form.add_field('file', image_data, filename=filename, content_type='image/jpeg')
                 form.add_field('caption', caption)
-                form.add_field('profile', self.profile)
+                form.add_field('username', self.profile)
                 form.add_field('platform', 'instagram')
                 
                 headers = {
@@ -86,7 +86,7 @@ class UploadPostService:
                     )
                 
                 form.add_field('caption', caption)
-                form.add_field('profile', self.profile)
+                form.add_field('username', self.profile)
                 form.add_field('platform', 'instagram')
                 form.add_field('type', 'carousel')
                 
@@ -128,7 +128,7 @@ class UploadPostService:
                 form = aiohttp.FormData()
                 form.add_field('file', video_data, filename=filename, content_type='video/mp4')
                 form.add_field('caption', caption)
-                form.add_field('profile', self.profile)
+                form.add_field('username', self.profile)
                 form.add_field('platform', 'instagram')
                 form.add_field('type', 'reel')
                 
