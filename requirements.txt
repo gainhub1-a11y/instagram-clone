@@ -15,7 +15,7 @@ deepl==1.16.1
 openai==1.6.1
 
 # CloudConvert
-cloudconvert==2.0.1
+cloudconvert==2.1.0
 
 # Video processing (FFmpeg wrapper)
 ffmpeg-python==0.2.0
