@@ -129,7 +129,7 @@ class UploadPostService:
                 form.add_field('file', video_data, filename=filename, content_type='video/mp4')
                 form.add_field('caption', caption)
                 form.add_field('user', self.profile)
-                form.add_field('platform', 'instagram')
+                form.add_field('platform[]', 'instagram')
                 
                 headers = {
                     'Authorization': self.api_token
