@@ -195,7 +195,7 @@ class ContentProcessor:
             
             logger.info(f"Video converted and hosted at: {video_url}")
             
-            # Translate video with HeyGen (includes subtitles)
+            # Translate video with HeyGen (includes audio translation and lip sync)
             translate_with_retry = self.error_handler.with_retry(
                 module_name="HeyGenTranslation",
                 scenario="Translating video with HeyGen"
@@ -203,7 +203,7 @@ class ContentProcessor:
             
             translated_video_url, _ = await translate_with_retry(video_url)
             
-            logger.info("Video translated with HeyGen (with subtitles)")
+            logger.info("Video translated with HeyGen (audio + lip sync)")
             
             # Download translated video
             import aiohttp
@@ -211,9 +211,19 @@ class ContentProcessor:
                 async with session.get(translated_video_url) as response:
                     if response.status != 200:
                         raise Exception(f"Failed to download translated video: {response.status}")
-                    final_video = await response.read()
+                    translated_video = await response.read()
             
-            logger.info(f"Translated video downloaded: {len(final_video)} bytes")
+            logger.info(f"Translated video downloaded: {len(translated_video)} bytes")
+            
+            # Add subtitles with FFmpeg
+            subtitle_with_retry = self.error_handler.with_retry(
+                module_name="SubtitleGeneration",
+                scenario="Adding subtitles to translated video"
+            )(self.subtitle.add_subtitles_to_video)
+            
+            final_video = await subtitle_with_retry(translated_video)
+            
+            logger.info(f"Subtitles added to video: {len(final_video)} bytes")
             
             # Translate caption
             translate_caption_with_retry = self.error_handler.with_retry(
