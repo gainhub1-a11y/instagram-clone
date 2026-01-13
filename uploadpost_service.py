@@ -127,6 +127,7 @@ class UploadPostService:
                 # Prepare multipart form data
                 form = aiohttp.FormData()
                 form.add_field('file', video_data, filename=filename, content_type='video/mp4')
+                form.add_field('title', caption[:100])  # Title max 100 chars
                 form.add_field('caption', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
