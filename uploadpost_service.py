@@ -122,34 +122,46 @@ class UploadPostService:
         """
         try:
             logger.info(f"Publishing reel to Instagram: {filename}")
+            logger.info(f"Video size: {len(video_data)} bytes")
             
             # Extract first sentence as title (max 100 chars)
-            # Split by common sentence endings
             title = caption.split('.')[0].split('!')[0].split('?')[0][:100].strip()
             if not title:
-                title = caption[:100].strip()  # Fallback to first 100 chars
+                title = caption[:100].strip()
             
             logger.info(f"Using title: {title}")
+            logger.info(f"Using caption: {caption[:100]}...")
+            logger.info(f"Using user: {self.profile}")
+            logger.info(f"Using platform: instagram")
             
             async with aiohttp.ClientSession() as session:
                 # Prepare multipart form data
                 form = aiohttp.FormData()
-                form.add_field('file', video_data, filename=filename, content_type='video/mp4')
+                form.add_field('video', video_data, filename=filename, content_type='video/mp4')
                 form.add_field('title', title)
                 form.add_field('caption', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
                 
+                logger.info("Form fields added successfully")
+                
                 headers = {
                     'Authorization': self.api_token
                 }
                 
+                logger.info(f"Sending request to: {self.api_url}")
+                
                 async with session.post(self.api_url, data=form, headers=headers) as response:
-                    if response.status not in [200, 201]:
+                    response_status = response.status
+                    logger.info(f"Response status: {response_status}")
+                    
+                    if response_status not in [200, 201]:
                         error_text = await response.text()
-                        raise Exception(f"Upload-Post API error: {response.status} - {error_text}")
+                        logger.error(f"Error response: {error_text}")
+                        raise Exception(f"Upload-Post API error: {response_status} - {error_text}")
                     
                     result = await response.json()
+                    logger.info(f"Success response: {result}")
                 
                 logger.info(f"Reel published successfully to Instagram")
                 return result
