@@ -4,6 +4,7 @@ Subtitle service using FFmpeg to add subtitles to videos
 import logging
 import os
 import re
+import json
 import tempfile
 import subprocess
 from openai import AsyncOpenAI
@@ -28,7 +29,7 @@ class SubtitleService:
     async def generate_srt_from_audio(self, video_path: str, language: str = "es") -> str:
         """
         Generate SRT subtitle file from video audio using OpenAI Whisper
-        With word-level timing for karaoke effect
+        With segment-level timing (best available in all versions)
         
         Args:
             video_path: Path to video file
@@ -38,7 +39,7 @@ class SubtitleService:
             SRT content as string with 2-3 words per subtitle
         """
         try:
-            logger.info(f"Generating word-level SRT subtitles from video: {video_path}")
+            logger.info(f"Generating SRT subtitles from video: {video_path}")
             
             # Extract audio from video
             audio_path = video_path.replace('.mp4', '_audio.mp3')
@@ -59,14 +60,13 @@ class SubtitleService:
             
             logger.info("Audio extracted successfully")
             
-            # Transcribe with Whisper (verbose JSON for word-level timing)
+            # Transcribe with Whisper (verbose JSON for timing)
             with open(audio_path, 'rb') as audio_file:
                 transcript = await self.openai_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     response_format="verbose_json",
-                    language=language,
-                    timestamp_granularities=["word"]
+                    language=language
                 )
             
             # Clean up audio file
@@ -75,7 +75,7 @@ class SubtitleService:
             except:
                 pass
             
-            logger.info(f"Whisper transcription completed with word-level timing")
+            logger.info(f"Whisper transcription completed")
             
             # Convert to SRT with 2-3 words per subtitle
             srt_content = self._create_bookoly_style_srt(transcript)
@@ -90,52 +90,88 @@ class SubtitleService:
     def _create_bookoly_style_srt(self, transcript) -> str:
         """
         Create SRT with 2-3 words per subtitle (Bookoly style)
+        Splits segments into smaller chunks
         
         Args:
-            transcript: Whisper verbose_json response with word-level timing
+            transcript: Whisper verbose_json response with segment-level timing
         
         Returns:
             SRT formatted string
         """
         try:
-            words = transcript.words
+            segments = transcript.segments if hasattr(transcript, 'segments') else []
             srt_lines = []
             subtitle_index = 1
             
-            # Group words into chunks of 2-3 words
-            i = 0
-            while i < len(words):
-                # Take 2-3 words
-                chunk_size = min(3, len(words) - i)
-                chunk = words[i:i+chunk_size]
+            for segment in segments:
+                # Get segment timing and text
+                start_time = segment['start']
+                end_time = segment['end']
+                text = segment['text'].strip()
                 
-                if not chunk:
-                    break
+                # Split text into words
+                words = text.split()
                 
-                # Get timing
-                start_time = chunk[0]['start']
-                end_time = chunk[-1]['end']
+                if not words:
+                    continue
                 
-                # Get text (uppercase for impact)
-                text = ' '.join([w['word'].strip() for w in chunk]).upper()
+                # Calculate duration per word
+                segment_duration = end_time - start_time
+                time_per_word = segment_duration / len(words) if len(words) > 0 else 0
                 
-                # Format times as SRT (00:00:00,000)
-                start_srt = self._format_srt_time(start_time)
-                end_srt = self._format_srt_time(end_time)
-                
-                # Add SRT entry
-                srt_lines.append(f"{subtitle_index}")
-                srt_lines.append(f"{start_srt} --> {end_srt}")
-                srt_lines.append(text)
-                srt_lines.append("")  # Empty line
-                
-                subtitle_index += 1
-                i += chunk_size
+                # Group words into chunks of 2-3
+                i = 0
+                while i < len(words):
+                    # Take 2-3 words
+                    chunk_size = min(3, len(words) - i)
+                    chunk = words[i:i+chunk_size]
+                    
+                    # Calculate timing for this chunk
+                    chunk_start = start_time + (i * time_per_word)
+                    chunk_end = start_time + ((i + chunk_size) * time_per_word)
+                    
+                    # Get text (uppercase for impact)
+                    chunk_text = ' '.join(chunk).upper()
+                    
+                    # Format times as SRT
+                    start_srt = self._format_srt_time(chunk_start)
+                    end_srt = self._format_srt_time(chunk_end)
+                    
+                    # Add SRT entry
+                    srt_lines.append(f"{subtitle_index}")
+                    srt_lines.append(f"{start_srt} --> {end_srt}")
+                    srt_lines.append(chunk_text)
+                    srt_lines.append("")  # Empty line
+                    
+                    subtitle_index += 1
+                    i += chunk_size
             
             return '\n'.join(srt_lines)
         
         except Exception as e:
             logger.error(f"Failed to create Bookoly-style SRT: {str(e)}")
+            # Fallback to simple SRT
+            return self._create_simple_srt(transcript)
+    
+    def _create_simple_srt(self, transcript) -> str:
+        """Fallback: create simple SRT from segments"""
+        try:
+            segments = transcript.segments if hasattr(transcript, 'segments') else []
+            srt_lines = []
+            
+            for i, segment in enumerate(segments, 1):
+                start_srt = self._format_srt_time(segment['start'])
+                end_srt = self._format_srt_time(segment['end'])
+                text = segment['text'].strip().upper()
+                
+                srt_lines.append(f"{i}")
+                srt_lines.append(f"{start_srt} --> {end_srt}")
+                srt_lines.append(text)
+                srt_lines.append("")
+            
+            return '\n'.join(srt_lines)
+        except Exception as e:
+            logger.error(f"Failed to create simple SRT: {str(e)}")
             raise
     
     def _format_srt_time(self, seconds: float) -> str:
