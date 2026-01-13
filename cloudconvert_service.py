@@ -3,17 +3,18 @@ CloudConvert service for video format conversion
 """
 import logging
 import asyncio
-import cloudconvert
+import aiohttp
 from config import CLOUDCONVERT_API_KEY
 
 logger = logging.getLogger(__name__)
 
 
 class CloudConvertService:
-    """Handles video format conversion using CloudConvert"""
+    """Handles video format conversion using CloudConvert API directly"""
     
     def __init__(self):
-        self.api = cloudconvert.Api(api_key=CLOUDCONVERT_API_KEY, sandbox=False)
+        self.api_key = CLOUDCONVERT_API_KEY
+        self.base_url = "https://api.cloudconvert.com/v2"
     
     async def convert_video_to_mp4(self, video_data: bytes, filename: str = "video") -> bytes:
         """
@@ -29,57 +30,91 @@ class CloudConvertService:
         try:
             logger.info(f"Starting CloudConvert video conversion: {len(video_data)} bytes")
             
-            # Create job with conversion task
-            job = self.api.jobs.create({
-                'tasks': {
-                    'import-video': {
-                        'operation': 'import/upload'
-                    },
-                    'convert-video': {
-                        'operation': 'convert',
-                        'input': 'import-video',
-                        'output_format': 'mp4',
-                        'video_codec': 'x264',
-                        'audio_codec': 'aac'
-                    },
-                    'export-video': {
-                        'operation': 'export/url',
-                        'input': 'convert-video'
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Step 1: Create job
+                job_payload = {
+                    "tasks": {
+                        "import-video": {
+                            "operation": "import/upload"
+                        },
+                        "convert-video": {
+                            "operation": "convert",
+                            "input": "import-video",
+                            "output_format": "mp4",
+                            "video_codec": "x264",
+                            "audio_codec": "aac"
+                        },
+                        "export-video": {
+                            "operation": "export/url",
+                            "input": "convert-video"
+                        }
                     }
                 }
-            })
-            
-            logger.info(f"CloudConvert job created: {job['id']}")
-            
-            # Upload file
-            upload_task = [task for task in job['tasks'] if task['name'] == 'import-video'][0]
-            self.api.tasks.upload(upload_task['id'], video_data, filename)
-            
-            logger.info("Video uploaded to CloudConvert")
-            
-            # Wait for completion
-            job = self.api.jobs.wait(job['id'])
-            
-            # Get export task
-            export_task = [task for task in job['tasks'] if task['name'] == 'export-video'][0]
-            
-            if export_task['status'] != 'finished':
-                raise Exception(f"CloudConvert export failed: {export_task.get('message', 'Unknown error')}")
-            
-            # Download converted file
-            file_url = export_task['result']['files'][0]['url']
-            
-            logger.info(f"Downloading converted video from: {file_url}")
-            
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(file_url) as response:
-                    if response.status != 200:
-                        raise Exception(f"Failed to download converted video: {response.status}")
-                    converted_data = await response.read()
-            
-            logger.info(f"Video converted successfully: {len(converted_data)} bytes")
-            return converted_data
+                
+                async with session.post(f"{self.base_url}/jobs", json=job_payload, headers=headers) as response:
+                    if response.status != 201:
+                        error = await response.text()
+                        raise Exception(f"Failed to create CloudConvert job: {error}")
+                    result = await response.json()
+                
+                job_id = result['data']['id']
+                logger.info(f"CloudConvert job created: {job_id}")
+                
+                # Step 2: Upload file
+                upload_task = [t for t in result['data']['tasks'] if t['name'] == 'import-video'][0]
+                upload_url = upload_task['result']['form']['url']
+                upload_params = upload_task['result']['form']['parameters']
+                
+                # Upload with multipart form
+                form = aiohttp.FormData()
+                for key, value in upload_params.items():
+                    form.add_field(key, value)
+                form.add_field('file', video_data, filename=f"{filename}.mp4")
+                
+                async with session.post(upload_url, data=form) as upload_response:
+                    if upload_response.status not in [200, 201]:
+                        error = await upload_response.text()
+                        raise Exception(f"Failed to upload to CloudConvert: {error}")
+                
+                logger.info("Video uploaded to CloudConvert")
+                
+                # Step 3: Wait for completion
+                while True:
+                    await asyncio.sleep(5)
+                    
+                    async with session.get(f"{self.base_url}/jobs/{job_id}", headers=headers) as status_response:
+                        if status_response.status != 200:
+                            error = await status_response.text()
+                            raise Exception(f"Failed to check job status: {error}")
+                        status_result = await status_response.json()
+                    
+                    job_status = status_result['data']['status']
+                    logger.info(f"CloudConvert job status: {job_status}")
+                    
+                    if job_status == 'finished':
+                        break
+                    elif job_status in ['error', 'failed']:
+                        raise Exception(f"CloudConvert job failed: {status_result['data'].get('message', 'Unknown error')}")
+                
+                # Step 4: Download converted file
+                export_task = [t for t in status_result['data']['tasks'] if t['name'] == 'export-video'][0]
+                file_url = export_task['result']['files'][0]['url']
+                
+                logger.info(f"Downloading converted video from: {file_url}")
+                
+                async with session.get(file_url) as download_response:
+                    if download_response.status != 200:
+                        error = await download_response.text()
+                        raise Exception(f"Failed to download converted video: {error}")
+                    converted_data = await download_response.read()
+                
+                logger.info(f"Video converted successfully: {len(converted_data)} bytes")
+                return converted_data
         
         except Exception as e:
             logger.error(f"CloudConvert conversion failed: {str(e)}")
