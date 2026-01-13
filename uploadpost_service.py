@@ -123,11 +123,19 @@ class UploadPostService:
         try:
             logger.info(f"Publishing reel to Instagram: {filename}")
             
+            # Extract first sentence as title (max 100 chars)
+            # Split by common sentence endings
+            title = caption.split('.')[0].split('!')[0].split('?')[0][:100].strip()
+            if not title:
+                title = caption[:100].strip()  # Fallback to first 100 chars
+            
+            logger.info(f"Using title: {title}")
+            
             async with aiohttp.ClientSession() as session:
                 # Prepare multipart form data
                 form = aiohttp.FormData()
                 form.add_field('file', video_data, filename=filename, content_type='video/mp4')
-                form.add_field('title', caption[:100])  # Title max 100 chars
+                form.add_field('title', title)
                 form.add_field('caption', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
