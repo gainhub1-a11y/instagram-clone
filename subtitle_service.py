@@ -42,7 +42,7 @@ class SubtitleService:
             audio_path = video_path.replace('.mp4', '_audio.mp3')
             
             extract_cmd = [
-                'ffmpeg', '-i', video_path,
+                '/usr/bin/ffmpeg', '-i', video_path,
                 '-vn',  # No video
                 '-acodec', 'libmp3lame',
                 '-q:a', '2',
@@ -50,7 +50,11 @@ class SubtitleService:
                 '-y'  # Overwrite
             ]
             
-            subprocess.run(extract_cmd, check=True, capture_output=True)
+            result = subprocess.run(extract_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"FFmpeg extract audio failed: {result.stderr}")
+                raise Exception(f"FFmpeg audio extraction failed: {result.stderr}")
+            
             logger.info("Audio extracted successfully")
             
             # Transcribe with Whisper
@@ -63,7 +67,10 @@ class SubtitleService:
                 )
             
             # Clean up audio file
-            os.remove(audio_path)
+            try:
+                os.remove(audio_path)
+            except:
+                pass
             
             logger.info(f"SRT generated successfully: {len(transcript)} characters")
             return transcript
@@ -91,8 +98,11 @@ class SubtitleService:
                 video_file.write(video_data)
                 video_path = video_file.name
             
+            logger.info(f"Video written to temp file: {video_path}")
+            
             # Generate SRT if not provided
             if not srt_content:
+                logger.info("No SRT provided, generating from audio...")
                 srt_content = await self.generate_srt_from_audio(video_path, language="es")
             
             # Write SRT to file
@@ -100,10 +110,12 @@ class SubtitleService:
             with open(srt_path, 'w', encoding='utf-8') as srt_file:
                 srt_file.write(srt_content)
             
+            logger.info(f"SRT written to: {srt_path}")
+            
             # Output path
             output_path = video_path.replace('.mp4', '_subtitled.mp4')
             
-            # FFmpeg subtitle style (white text, no outline, uppercase, center-bottom)
+            # FFmpeg subtitle style (white text, bottom center, uppercase)
             subtitle_style = (
                 f"FontName={SUBTITLE_FONT},"
                 f"FontSize={SUBTITLE_FONT_SIZE},"
@@ -111,26 +123,38 @@ class SubtitleService:
                 f"Alignment=2"  # Bottom center
             )
             
+            logger.info(f"Adding subtitles with FFmpeg...")
+            
             # Add subtitles with FFmpeg
             ffmpeg_cmd = [
-                'ffmpeg', '-i', video_path,
+                '/usr/bin/ffmpeg', '-i', video_path,
                 '-vf', f"subtitles={srt_path}:force_style='{subtitle_style}'",
                 '-c:a', 'copy',  # Copy audio without re-encoding
                 output_path,
                 '-y'
             ]
             
-            logger.info("Running FFmpeg to add subtitles...")
-            subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
+            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"FFmpeg subtitle addition failed: {result.stderr}")
+                raise Exception(f"FFmpeg failed: {result.stderr}")
+            
+            logger.info("FFmpeg completed successfully")
             
             # Read output video
             with open(output_path, 'rb') as output_file:
                 subtitled_video = output_file.read()
             
+            logger.info(f"Subtitled video read: {len(subtitled_video)} bytes")
+            
             # Clean up temp files
-            os.remove(video_path)
-            os.remove(srt_path)
-            os.remove(output_path)
+            try:
+                os.remove(video_path)
+                os.remove(srt_path)
+                os.remove(output_path)
+                logger.info("Temp files cleaned up")
+            except Exception as cleanup_error:
+                logger.warning(f"Cleanup warning: {cleanup_error}")
             
             logger.info(f"Subtitles added successfully: {len(subtitled_video)} bytes")
             return subtitled_video
@@ -139,11 +163,11 @@ class SubtitleService:
             logger.error(f"Adding subtitles failed: {str(e)}")
             # Clean up on error
             try:
-                if os.path.exists(video_path):
+                if 'video_path' in locals() and os.path.exists(video_path):
                     os.remove(video_path)
-                if os.path.exists(srt_path):
+                if 'srt_path' in locals() and os.path.exists(srt_path):
                     os.remove(srt_path)
-                if os.path.exists(output_path):
+                if 'output_path' in locals() and os.path.exists(output_path):
                     os.remove(output_path)
             except:
                 pass
@@ -153,3 +177,45 @@ class SubtitleService:
 def create_subtitle_service() -> SubtitleService:
     """Factory function to create a SubtitleService instance"""
     return SubtitleService()
+```
+
+**Salva il file** → Commit changes
+
+---
+
+## 📋 **STEP 3: Railway Deploy**
+
+Railway ora rileverà il `Dockerfile` e lo userà invece di Procfile!
+
+1. **Vai su Railway** → Progetto instagram-clone
+2. **Railway inizierà automaticamente un nuovo deploy**
+3. **Guarda i logs** nel tab "Deployments"
+
+Dovresti vedere:
+```
+Installing FFmpeg...
+Building with Dockerfile...
+```
+
+---
+
+## ⏱️ **STEP 4: Aspetta Deploy (2-3 minuti)**
+
+Railway sta:
+1. Building Docker image
+2. Installing FFmpeg
+3. Installing Python dependencies
+4. Starting bot
+
+---
+
+## 📊 **STEP 5: Testa**
+
+Quando deploy è completo, manda un nuovo video nel canale Telegram!
+
+Vedrai nei logs:
+```
+Adding subtitles to video...
+FFmpeg completed successfully
+Subtitles added successfully
+Reel published successfully to Instagram
