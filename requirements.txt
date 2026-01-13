@@ -1,0 +1,24 @@
+# Telegram Bot
+python-telegram-bot==20.7
+
+# Environment variables
+python-dotenv==1.0.0
+
+# HTTP requests
+aiohttp==3.9.1
+requests==2.31.0
+
+# Translation
+deepl==1.16.1
+
+# OpenAI
+openai==1.6.1
+
+# CloudConvert
+cloudconvert==2.0.1
+
+# Video processing (FFmpeg wrapper)
+ffmpeg-python==0.2.0
+
+# Utilities
+python-dateutil==2.8.2
