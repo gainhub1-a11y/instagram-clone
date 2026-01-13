@@ -3,6 +3,7 @@ Subtitle service using FFmpeg to add subtitles to videos
 """
 import logging
 import os
+import re
 import tempfile
 import subprocess
 from openai import AsyncOpenAI
@@ -27,16 +28,17 @@ class SubtitleService:
     async def generate_srt_from_audio(self, video_path: str, language: str = "es") -> str:
         """
         Generate SRT subtitle file from video audio using OpenAI Whisper
+        With word-level timing for karaoke effect
         
         Args:
             video_path: Path to video file
             language: Language code (es for Spanish)
         
         Returns:
-            SRT content as string
+            SRT content as string with 2-3 words per subtitle
         """
         try:
-            logger.info(f"Generating SRT subtitles from video: {video_path}")
+            logger.info(f"Generating word-level SRT subtitles from video: {video_path}")
             
             # Extract audio from video
             audio_path = video_path.replace('.mp4', '_audio.mp3')
@@ -57,13 +59,14 @@ class SubtitleService:
             
             logger.info("Audio extracted successfully")
             
-            # Transcribe with Whisper
+            # Transcribe with Whisper (verbose JSON for word-level timing)
             with open(audio_path, 'rb') as audio_file:
                 transcript = await self.openai_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    response_format="srt",
-                    language=language
+                    response_format="verbose_json",
+                    language=language,
+                    timestamp_granularities=["word"]
                 )
             
             # Clean up audio file
@@ -72,16 +75,80 @@ class SubtitleService:
             except:
                 pass
             
-            logger.info(f"SRT generated successfully: {len(transcript)} characters")
-            return transcript
+            logger.info(f"Whisper transcription completed with word-level timing")
+            
+            # Convert to SRT with 2-3 words per subtitle
+            srt_content = self._create_bookoly_style_srt(transcript)
+            
+            logger.info(f"SRT generated successfully: {len(srt_content)} characters")
+            return srt_content
         
         except Exception as e:
             logger.error(f"SRT generation failed: {str(e)}")
             raise
     
+    def _create_bookoly_style_srt(self, transcript) -> str:
+        """
+        Create SRT with 2-3 words per subtitle (Bookoly style)
+        
+        Args:
+            transcript: Whisper verbose_json response with word-level timing
+        
+        Returns:
+            SRT formatted string
+        """
+        try:
+            words = transcript.words
+            srt_lines = []
+            subtitle_index = 1
+            
+            # Group words into chunks of 2-3 words
+            i = 0
+            while i < len(words):
+                # Take 2-3 words
+                chunk_size = min(3, len(words) - i)
+                chunk = words[i:i+chunk_size]
+                
+                if not chunk:
+                    break
+                
+                # Get timing
+                start_time = chunk[0]['start']
+                end_time = chunk[-1]['end']
+                
+                # Get text (uppercase for impact)
+                text = ' '.join([w['word'].strip() for w in chunk]).upper()
+                
+                # Format times as SRT (00:00:00,000)
+                start_srt = self._format_srt_time(start_time)
+                end_srt = self._format_srt_time(end_time)
+                
+                # Add SRT entry
+                srt_lines.append(f"{subtitle_index}")
+                srt_lines.append(f"{start_srt} --> {end_srt}")
+                srt_lines.append(text)
+                srt_lines.append("")  # Empty line
+                
+                subtitle_index += 1
+                i += chunk_size
+            
+            return '\n'.join(srt_lines)
+        
+        except Exception as e:
+            logger.error(f"Failed to create Bookoly-style SRT: {str(e)}")
+            raise
+    
+    def _format_srt_time(self, seconds: float) -> str:
+        """Convert seconds to SRT time format (00:00:00,000)"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        millis = int((seconds % 1) * 1000)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+    
     async def add_subtitles_to_video(self, video_data: bytes, srt_content: str = None) -> bytes:
         """
-        Add subtitles to video using FFmpeg
+        Add subtitles to video using FFmpeg with Bookoly styling
         
         Args:
             video_data: Video file as bytes
@@ -91,7 +158,7 @@ class SubtitleService:
             Video with subtitles as bytes
         """
         try:
-            logger.info(f"Adding subtitles to video: {len(video_data)} bytes")
+            logger.info(f"Adding Bookoly-style subtitles to video: {len(video_data)} bytes")
             
             # Create temporary files
             with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as video_file:
@@ -115,21 +182,29 @@ class SubtitleService:
             # Output path
             output_path = video_path.replace('.mp4', '_subtitled.mp4')
             
-            # FFmpeg subtitle style (white text, bottom center, uppercase)
+            # Bookoly-style subtitle formatting
+            # White text, bold, large font, centered bottom
             subtitle_style = (
-                f"FontName={SUBTITLE_FONT},"
-                f"FontSize={SUBTITLE_FONT_SIZE},"
-                f"PrimaryColour=&HFFFFFF,"  # White
-                f"Alignment=2"  # Bottom center
+                f"FontName=Arial Black,"
+                f"FontSize=28,"
+                f"Bold=1,"
+                f"PrimaryColour=&H00FFFFFF,"  # White
+                f"OutlineColour=&H00000000,"  # Black outline
+                f"BorderStyle=3,"  # Box background
+                f"Outline=2,"  # Outline thickness
+                f"Shadow=0,"
+                f"Alignment=2,"  # Bottom center
+                f"MarginV=80"  # 80px from bottom
             )
             
-            logger.info(f"Adding subtitles with FFmpeg...")
+            logger.info(f"Adding Bookoly-style subtitles with FFmpeg...")
             
             # Add subtitles with FFmpeg
             ffmpeg_cmd = [
                 '/usr/bin/ffmpeg', '-i', video_path,
                 '-vf', f"subtitles={srt_path}:force_style='{subtitle_style}'",
                 '-c:a', 'copy',  # Copy audio without re-encoding
+                '-preset', 'fast',  # Faster encoding
                 output_path,
                 '-y'
             ]
@@ -156,7 +231,7 @@ class SubtitleService:
             except Exception as cleanup_error:
                 logger.warning(f"Cleanup warning: {cleanup_error}")
             
-            logger.info(f"Subtitles added successfully: {len(subtitled_video)} bytes")
+            logger.info(f"Bookoly-style subtitles added successfully: {len(subtitled_video)} bytes")
             return subtitled_video
         
         except Exception as e:
@@ -177,45 +252,3 @@ class SubtitleService:
 def create_subtitle_service() -> SubtitleService:
     """Factory function to create a SubtitleService instance"""
     return SubtitleService()
-```
-
-**Salva il file** → Commit changes
-
----
-
-## 📋 **STEP 3: Railway Deploy**
-
-Railway ora rileverà il `Dockerfile` e lo userà invece di Procfile!
-
-1. **Vai su Railway** → Progetto instagram-clone
-2. **Railway inizierà automaticamente un nuovo deploy**
-3. **Guarda i logs** nel tab "Deployments"
-
-Dovresti vedere:
-```
-Installing FFmpeg...
-Building with Dockerfile...
-```
-
----
-
-## ⏱️ **STEP 4: Aspetta Deploy (2-3 minuti)**
-
-Railway sta:
-1. Building Docker image
-2. Installing FFmpeg
-3. Installing Python dependencies
-4. Starting bot
-
----
-
-## 📊 **STEP 5: Testa**
-
-Quando deploy è completo, manda un nuovo video nel canale Telegram!
-
-Vedrai nei logs:
-```
-Adding subtitles to video...
-FFmpeg completed successfully
-Subtitles added successfully
-Reel published successfully to Instagram
