@@ -1,6 +1,3 @@
-"""
-Content processor for Instagram - handles photos, carousels, and videos
-"""
 import logging
 import asyncio
 from typing import Dict, List
@@ -19,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class ContentProcessor:
-    """Processes different types of content for Instagram"""
     
     def __init__(
         self,
@@ -39,14 +35,11 @@ class ContentProcessor:
         self.subtitle = subtitle_service
         self.uploadpost = uploadpost_service
         
-        # Carousel management
         self.carousel_groups: Dict[str, List[bytes]] = {}
         self.carousel_captions: Dict[str, str] = {}
     
     async def process_message(self, message: Message):
-        """Route message to appropriate processor"""
         try:
-            # Check if part of media group (carousel)
             if message.media_group_id:
                 await self.process_carousel_item(message)
             elif message.photo and message.caption:
@@ -60,18 +53,15 @@ class ContentProcessor:
             logger.error(f"Error processing message {message.message_id}: {str(e)}")
     
     async def process_photo_with_caption(self, message: Message):
-        """Process single photo with caption"""
         logger.info(f"Processing single photo: {message.message_id}")
         
         try:
-            # Download photo
-            photo = message.photo[-1]  # Largest size
+            photo = message.photo[-1]
             file = await self.bot.get_file(photo.file_id)
             photo_data = await file.download_as_bytearray()
             
             logger.info(f"Photo downloaded: {len(photo_data)} bytes")
             
-            # Translate caption
             translate_with_retry = self.error_handler.with_retry(
                 module_name="CaptionTranslation",
                 scenario="Translating photo caption",
@@ -80,12 +70,10 @@ class ContentProcessor:
             
             translated_caption = await translate_with_retry(message.caption)
             
-            # Truncate if needed
             if len(translated_caption) > CAPTION_MAX_LENGTH:
                 translated_caption = translated_caption[:CAPTION_MAX_LENGTH-3] + "..."
                 logger.warning(f"Caption truncated to {CAPTION_MAX_LENGTH} characters")
             
-            # Publish to Instagram
             publish_with_retry = self.error_handler.with_retry(
                 module_name="InstagramPublish",
                 scenario="Publishing photo to Instagram"
@@ -100,36 +88,29 @@ class ContentProcessor:
             raise
     
     async def process_carousel_item(self, message: Message):
-        """Collect carousel items and publish when complete"""
         media_group_id = message.media_group_id
         
         logger.info(f"Processing carousel item: group {media_group_id}")
         
-        # Initialize group if new
         if media_group_id not in self.carousel_groups:
             self.carousel_groups[media_group_id] = []
             self.carousel_captions[media_group_id] = message.caption or ""
             logger.info(f"New carousel group started: {media_group_id}")
         
-        # Download photo
         photo = message.photo[-1]
         file = await self.bot.get_file(photo.file_id)
         photo_data = await file.download_as_bytearray()
         
-        # Add to group
         self.carousel_groups[media_group_id].append(bytes(photo_data))
         
         logger.info(f"Carousel item added: {len(self.carousel_groups[media_group_id])}/{MAX_CAROUSEL_ITEMS}")
         
-        # Wait for more items
         await asyncio.sleep(CAROUSEL_WAIT_TIMEOUT)
         
-        # Check if we should publish (no new items arrived)
         if len(self.carousel_groups[media_group_id]) <= MAX_CAROUSEL_ITEMS:
             await self.publish_carousel(media_group_id)
     
     async def publish_carousel(self, media_group_id: str):
-        """Publish complete carousel to Instagram"""
         if media_group_id not in self.carousel_groups:
             return
         
@@ -139,7 +120,6 @@ class ContentProcessor:
         logger.info(f"Publishing carousel: {len(images)} photos")
         
         try:
-            # Translate caption
             if caption:
                 translate_with_retry = self.error_handler.with_retry(
                     module_name="CaptionTranslation",
@@ -151,11 +131,9 @@ class ContentProcessor:
             else:
                 translated_caption = ""
             
-            # Truncate if needed
             if len(translated_caption) > CAPTION_MAX_LENGTH:
                 translated_caption = translated_caption[:CAPTION_MAX_LENGTH-3] + "..."
             
-            # Publish to Instagram
             publish_with_retry = self.error_handler.with_retry(
                 module_name="InstagramPublish",
                 scenario="Publishing carousel to Instagram"
@@ -165,7 +143,6 @@ class ContentProcessor:
             
             logger.info("Carousel published successfully to Instagram")
             
-            # Clean up
             del self.carousel_groups[media_group_id]
             if media_group_id in self.carousel_captions:
                 del self.carousel_captions[media_group_id]
@@ -175,17 +152,14 @@ class ContentProcessor:
             raise
     
     async def process_video_with_caption(self, message: Message):
-        """Process video with caption (Reel)"""
         logger.info(f"Processing video: {message.message_id}")
         
         try:
-            # Download video
             file = await self.bot.get_file(message.video.file_id)
             video_data = await file.download_as_bytearray()
             
             logger.info(f"Video downloaded: {len(video_data)} bytes")
             
-            # Convert to MP4 and get URL from CloudConvert
             convert_with_retry = self.error_handler.with_retry(
                 module_name="CloudConvert",
                 scenario="Converting video to MP4 and getting URL"
@@ -195,7 +169,6 @@ class ContentProcessor:
             
             logger.info(f"Video converted and hosted at: {video_url}")
             
-            # Translate video with HeyGen (includes audio translation and lip sync)
             translate_with_retry = self.error_handler.with_retry(
                 module_name="HeyGenTranslation",
                 scenario="Translating video with HeyGen"
@@ -205,7 +178,6 @@ class ContentProcessor:
             
             logger.info("Video translated with HeyGen (audio + lip sync)")
             
-            # Download translated video
             import aiohttp
             async with aiohttp.ClientSession() as session:
                 async with session.get(translated_video_url) as response:
@@ -215,7 +187,6 @@ class ContentProcessor:
             
             logger.info(f"Translated video downloaded: {len(translated_video)} bytes")
             
-            # Add subtitles with FFmpeg
             subtitle_with_retry = self.error_handler.with_retry(
                 module_name="SubtitleGeneration",
                 scenario="Adding subtitles to translated video"
@@ -225,7 +196,16 @@ class ContentProcessor:
             
             logger.info(f"Subtitles added to video: {len(final_video)} bytes")
             
-            # Translate caption
+            logger.info("Uploading final video to CloudConvert for Instagram...")
+            upload_with_retry = self.error_handler.with_retry(
+                module_name="CloudConvert",
+                scenario="Uploading final video to CloudConvert"
+            )(self.cloudconvert.convert_and_get_url)
+            
+            final_video_url = await upload_with_retry(final_video)
+            
+            logger.info(f"Final video hosted at: {final_video_url}")
+            
             translate_caption_with_retry = self.error_handler.with_retry(
                 module_name="CaptionTranslation",
                 scenario="Translating video caption",
@@ -234,17 +214,15 @@ class ContentProcessor:
             
             translated_caption = await translate_caption_with_retry(message.caption)
             
-            # Truncate if needed
             if len(translated_caption) > CAPTION_MAX_LENGTH:
                 translated_caption = translated_caption[:CAPTION_MAX_LENGTH-3] + "..."
             
-            # Publish to Instagram
             publish_with_retry = self.error_handler.with_retry(
                 module_name="InstagramPublish",
-                scenario="Publishing reel to Instagram"
-            )(self.uploadpost.publish_reel)
+                scenario="Publishing reel to Instagram from URL"
+            )(self.uploadpost.publish_reel_from_url)
             
-            await publish_with_retry(final_video, translated_caption, "reel.mp4")
+            await publish_with_retry(final_video_url, translated_caption)
             
             logger.info("Reel published successfully to Instagram")
         
