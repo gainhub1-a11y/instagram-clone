@@ -38,3 +38,6 @@ SUBTITLE_FONT_SIZE = 14
 SUBTITLE_COLOR = "#FFFF00"
 SUBTITLE_POSITION = "bottom-center"
 SUBTITLE_MAX_WORDS_PER_LINE = 2
+
+# Logging Configuration
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
