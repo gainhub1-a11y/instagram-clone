@@ -34,20 +34,6 @@ UPLOADPOST_API_URL = os.getenv('UPLOADPOST_API_URL', 'https://app.upload-post.co
 # Subtitle Configuration
 SUBTITLE_FONT = "Arial Black"
 SUBTITLE_FONT_SIZE = 14
-SUBTITLE_COLOR = "#FFFF00"  # Yellow
+SUBTITLE_COLOR = "#FFFF00"
 SUBTITLE_POSITION = "bottom-center"
 SUBTITLE_MAX_WORDS_PER_LINE = 2
-```
-
----
-
-## 📄 **2. requirements.txt - AGGIUNGI GROQ**
-```
-python-telegram-bot==20.7
-python-dotenv==1.0.0
-aiohttp==3.9.1
-openai==1.12.0
-groq>=0.4.0
-deepl==1.16.1
-requests==2.31.0
-Pillow==10.2.0
