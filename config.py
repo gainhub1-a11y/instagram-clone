@@ -39,6 +39,10 @@ SUBTITLE_COLOR = "#FFFF00"
 SUBTITLE_POSITION = "bottom-center"
 SUBTITLE_MAX_WORDS_PER_LINE = 2
 
+# Error Handling Configuration
+MAX_RETRIES = 3
+RETRY_DELAY = 1  # seconds
+
 # Logging Configuration
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
