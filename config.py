@@ -9,6 +9,7 @@ load_dotenv()
 
 # Telegram Configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+SOURCE_CHANNEL_ID = int(os.getenv('SOURCE_CHANNEL_ID', '-1003579454785'))
 CHANNEL_ID = int(os.getenv('CHANNEL_ID', '-1003579454785'))
 
 # OpenAI Configuration
