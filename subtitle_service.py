@@ -196,21 +196,20 @@ class SubtitleService:
             # Output path
             output_path = video_path.replace('.mp4', '_subtitled.mp4')
             
-            # Subtitle styling (small, white text with black outline, no background)
+            # Subtitle styling (yellow text, no outline, no shadow)
             subtitle_style = (
                 f"FontName=Arial Black,"
                 f"FontSize=16,"
                 f"Bold=1,"
-                f"PrimaryColour=&H00FFFFFF,"  # White
-                f"OutlineColour=&H00000000,"  # Black outline
-                f"BorderStyle=1,"  # Outline + shadow (no box)
-                f"Outline=2,"  # Outline thickness
-                f"Shadow=1,"  # Shadow
+                f"PrimaryColour=&H0000FFFF,"  # Yellow (BGR format: AABBGGRR)
+                f"BorderStyle=1,"
+                f"Outline=0,"  # No outline
+                f"Shadow=0,"  # No shadow
                 f"Alignment=2,"  # Bottom center
                 f"MarginV=60"  # 60px from bottom
             )
             
-            logger.info(f"Adding subtitles with FFmpeg...")
+            logger.info(f"Adding yellow subtitles with FFmpeg...")
             
             # Add subtitles with FFmpeg
             ffmpeg_cmd = [
@@ -244,7 +243,7 @@ class SubtitleService:
             except Exception as cleanup_error:
                 logger.warning(f"Cleanup warning: {cleanup_error}")
             
-            logger.info(f"Subtitles added successfully: {len(subtitled_video)} bytes")
+            logger.info(f"Yellow subtitles added successfully: {len(subtitled_video)} bytes")
             return subtitled_video
         
         except Exception as e:
