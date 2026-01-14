@@ -8,11 +8,8 @@ SOURCE_CHANNEL_ID = int(os.getenv('SOURCE_CHANNEL_ID', '-1003579454785'))
 CHANNEL_ID = int(os.getenv('CHANNEL_ID', '-1003579454785'))
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
-
 DEEPL_API_KEY = os.getenv('DEEPL_API_KEY')
-
 CLOUDCONVERT_API_KEY = os.getenv('CLOUDCONVERT_API_KEY')
 
 HEYGEN_API_KEY = os.getenv('HEYGEN_API_KEY')
@@ -21,7 +18,7 @@ HEYGEN_POLL_INTERVAL = 10
 
 UPLOADPOST_API_TOKEN = os.getenv('UPLOADPOST_API_TOKEN')
 UPLOADPOST_PROFILE = os.getenv('UPLOADPOST_PROFILE')
-UPLOADPOST_API_URL = os.getenv('UPLOADPOST_API_URL', 'https://app.upload-post.com/api/v2/media/create')
+UPLOADPOST_API_URL = os.getenv('UPLOADPOST_API_URL', 'https://api.upload-post.com/api/upload')
 
 SUBTITLE_FONT = "Arial Black"
 SUBTITLE_FONT_SIZE = 14
