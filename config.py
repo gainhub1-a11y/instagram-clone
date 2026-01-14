@@ -26,6 +26,8 @@ CLOUDCONVERT_API_KEY = os.getenv('CLOUDCONVERT_API_KEY')
 
 # HeyGen Configuration
 HEYGEN_API_KEY = os.getenv('HEYGEN_API_KEY')
+HEYGEN_TIMEOUT = 600  # 10 minutes
+HEYGEN_POLL_INTERVAL = 10  # seconds
 
 # Upload-Post Configuration
 UPLOADPOST_API_TOKEN = os.getenv('UPLOADPOST_API_TOKEN')
