@@ -32,10 +32,16 @@ class UploadPostService:
         try:
             logger.info(f"Publishing photo to Instagram: {filename}")
             
+            # Extract title from caption (first sentence, max 100 chars)
+            title = caption.split('.')[0].split('!')[0].split('?')[0][:100].strip()
+            if not title:
+                title = caption[:100].strip()
+            
             async with aiohttp.ClientSession() as session:
                 # Prepare multipart form data
                 form = aiohttp.FormData()
                 form.add_field('file', image_data, filename=filename, content_type='image/jpeg')
+                form.add_field('title', title)
                 form.add_field('caption', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
@@ -72,6 +78,13 @@ class UploadPostService:
         try:
             logger.info(f"Publishing carousel to Instagram: {len(images_data)} photos")
             
+            # Extract title from caption (first sentence, max 100 chars)
+            title = caption.split('.')[0].split('!')[0].split('?')[0][:100].strip()
+            if not title:
+                title = caption[:100].strip()
+            
+            logger.info(f"Using title: {title}")
+            
             async with aiohttp.ClientSession() as session:
                 # Prepare multipart form data
                 form = aiohttp.FormData()
@@ -85,6 +98,7 @@ class UploadPostService:
                         content_type='image/jpeg'
                     )
                 
+                form.add_field('title', title)
                 form.add_field('caption', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
@@ -122,7 +136,6 @@ class UploadPostService:
         """
         try:
             logger.info(f"Publishing reel to Instagram: {filename}")
-            logger.info(f"Video size: {len(video_data)} bytes")
             
             # Extract first sentence as title (max 100 chars)
             title = caption.split('.')[0].split('!')[0].split('?')[0][:100].strip()
@@ -130,9 +143,6 @@ class UploadPostService:
                 title = caption[:100].strip()
             
             logger.info(f"Using title: {title}")
-            logger.info(f"Using caption: {caption[:100]}...")
-            logger.info(f"Using user: {self.profile}")
-            logger.info(f"Using platform: instagram")
             
             async with aiohttp.ClientSession() as session:
                 # Prepare multipart form data
@@ -142,8 +152,6 @@ class UploadPostService:
                 form.add_field('caption', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
-                
-                logger.info("Form fields added successfully")
                 
                 headers = {
                     'Authorization': self.api_token
