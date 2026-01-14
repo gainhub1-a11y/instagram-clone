@@ -196,16 +196,6 @@ class ContentProcessor:
             
             logger.info(f"Subtitles added to video: {len(final_video)} bytes")
             
-            logger.info("Uploading final video to CloudConvert for Instagram...")
-            upload_with_retry = self.error_handler.with_retry(
-                module_name="CloudConvert",
-                scenario="Uploading final video to CloudConvert"
-            )(self.cloudconvert.convert_and_get_url)
-            
-            final_video_url = await upload_with_retry(final_video)
-            
-            logger.info(f"Final video hosted at: {final_video_url}")
-            
             translate_caption_with_retry = self.error_handler.with_retry(
                 module_name="CaptionTranslation",
                 scenario="Translating video caption",
@@ -219,10 +209,10 @@ class ContentProcessor:
             
             publish_with_retry = self.error_handler.with_retry(
                 module_name="InstagramPublish",
-                scenario="Publishing reel to Instagram from URL"
-            )(self.uploadpost.publish_reel_from_url)
+                scenario="Publishing reel to Instagram"
+            )(self.uploadpost.publish_reel)
             
-            await publish_with_retry(final_video_url, translated_caption)
+            await publish_with_retry(final_video, translated_caption, "reel.mp4")
             
             logger.info("Reel published successfully to Instagram")
         
