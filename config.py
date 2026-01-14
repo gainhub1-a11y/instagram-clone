@@ -41,3 +41,26 @@ SUBTITLE_MAX_WORDS_PER_LINE = 2
 
 # Logging Configuration
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+
+def validate_config():
+    """
+    Validate that all required environment variables are set
+    """
+    required_vars = {
+        'TELEGRAM_BOT_TOKEN': TELEGRAM_BOT_TOKEN,
+        'OPENAI_API_KEY': OPENAI_API_KEY,
+        'GROQ_API_KEY': GROQ_API_KEY,
+        'DEEPL_API_KEY': DEEPL_API_KEY,
+        'CLOUDCONVERT_API_KEY': CLOUDCONVERT_API_KEY,
+        'HEYGEN_API_KEY': HEYGEN_API_KEY,
+        'UPLOADPOST_API_TOKEN': UPLOADPOST_API_TOKEN,
+        'UPLOADPOST_PROFILE': UPLOADPOST_PROFILE,
+    }
+    
+    missing = [var for var, value in required_vars.items() if not value]
+    
+    if missing:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+    
+    return True
