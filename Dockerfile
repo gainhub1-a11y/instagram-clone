@@ -6,43 +6,36 @@ RUN apt-get update && apt-get install -y \
     fontconfig \
     wget \
     unzip \
+    fonts-liberation \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Create fonts directory
-RUN mkdir -p /usr/share/fonts/truetype/custom
+RUN mkdir -p /usr/share/fonts/truetype/google-fonts
 
-# Download fonts - CORRECT GitHub URLs!
+# Download Google Fonts as ZIP and extract
 RUN cd /tmp && \
-    echo "=== DOWNLOADING FONTS ===" && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/montserrat/Montserrat-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/montserrat/Montserrat-SemiBold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/bebasneue/BebasNeue-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/anton/Anton-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/oswald/Oswald-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/luckiestguy/LuckiestGuy-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/bangers/Bangers-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/permanentmarker/PermanentMarker-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/poppins/Poppins-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/poppins/Poppins-SemiBold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/apache/roboto/Roboto-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/apache/roboto/Roboto-Black.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/apache/opensans/OpenSans-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/lato/Lato-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/pacifico/Pacifico-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/righteous/Righteous-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/raleway/Raleway-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/inter/Inter-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/outfit/Outfit-Bold.ttf && \
-    echo "=== FONTS DOWNLOADED ===" && \
-    ls -lah *.ttf && \
-    echo "=== MOVING FONTS ===" && \
-    mv *.ttf /usr/share/fonts/truetype/custom/ && \
-    echo "=== FONTS IN DIRECTORY ===" && \
-    ls -lah /usr/share/fonts/truetype/custom/ && \
+    echo "=== DOWNLOADING FONT PACKS ===" && \
+    wget -O montserrat.zip "https://fonts.google.com/download?family=Montserrat" && \
+    wget -O bebasneue.zip "https://fonts.google.com/download?family=Bebas%20Neue" && \
+    wget -O luckiestguy.zip "https://fonts.google.com/download?family=Luckiest%20Guy" && \
+    wget -O bangers.zip "https://fonts.google.com/download?family=Bangers" && \
+    wget -O anton.zip "https://fonts.google.com/download?family=Anton" && \
+    wget -O poppins.zip "https://fonts.google.com/download?family=Poppins" && \
+    wget -O roboto.zip "https://fonts.google.com/download?family=Roboto" && \
+    wget -O oswald.zip "https://fonts.google.com/download?family=Oswald" && \
+    wget -O permanentmarker.zip "https://fonts.google.com/download?family=Permanent%20Marker" && \
+    wget -O pacifico.zip "https://fonts.google.com/download?family=Pacifico" && \
+    wget -O inter.zip "https://fonts.google.com/download?family=Inter" && \
+    wget -O outfit.zip "https://fonts.google.com/download?family=Outfit" && \
+    echo "=== EXTRACTING FONTS ===" && \
+    unzip -o "*.zip" -d /usr/share/fonts/truetype/google-fonts/ && \
+    echo "=== FONTS EXTRACTED ===" && \
+    find /usr/share/fonts/truetype/google-fonts/ -name "*.ttf" | wc -l && \
     echo "=== REBUILDING FONT CACHE ===" && \
     fc-cache -fv && \
     echo "=== AVAILABLE FONTS ===" && \
-    fc-list : family | sort | uniq && \
+    fc-list : family | grep -i "luckiest\|montserrat\|bebas\|bangers\|anton" | sort | uniq && \
     echo "=== CLEANUP ===" && \
     rm -rf /tmp/*
 
