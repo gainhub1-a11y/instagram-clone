@@ -23,6 +23,22 @@ class SubtitleService:
         if not GROQ_API_KEY:
             raise ValueError("GROQ_API_KEY is not set in environment variables")
         self.groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+        
+        # Log available fonts on startup for debugging
+        try:
+            result = subprocess.run(['fc-list', ':', 'family'], capture_output=True, text=True)
+            available_fonts = set(result.stdout.strip().split('\n'))
+            logger.info(f"Total fonts available: {len(available_fonts)}")
+            
+            # Check if our configured font is available
+            font_found = any(SUBTITLE_FONT.lower() in font.lower() for font in available_fonts)
+            if font_found:
+                logger.info(f"✅ Font '{SUBTITLE_FONT}' found in system!")
+            else:
+                logger.warning(f"⚠️ Font '{SUBTITLE_FONT}' NOT found! Available fonts logged below.")
+                logger.warning(f"Available fonts (first 20): {sorted(list(available_fonts))[:20]}")
+        except Exception as e:
+            logger.warning(f"Could not check available fonts: {e}")
     
     async def generate_srt_from_audio(self, video_path: str, language: str = "es") -> str:
         try:
@@ -204,6 +220,10 @@ class SubtitleService:
             if result.returncode != 0:
                 logger.error(f"FFmpeg subtitle addition failed: {result.stderr}")
                 raise Exception(f"FFmpeg failed: {result.stderr}")
+            
+            # Log FFmpeg warnings about fonts
+            if 'fontconfig' in result.stderr.lower() or 'font' in result.stderr.lower():
+                logger.warning(f"FFmpeg font warnings: {result.stderr}")
             
             logger.info("FFmpeg completed successfully")
             
