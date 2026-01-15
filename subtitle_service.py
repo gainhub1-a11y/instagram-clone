@@ -65,7 +65,7 @@ class SubtitleService:
     def _create_karaoke_srt(self, transcription) -> str:
         """
         Create karaoke-style subtitles - ONE WORD AT A TIME
-        Each word appears exactly when it's spoken, then disappears
+        NO OVERLAP between words - each word finishes BEFORE the next starts
         """
         try:
             words = transcription.words if hasattr(transcription, 'words') else []
@@ -74,7 +74,7 @@ class SubtitleService:
                 logger.error("No word-level timestamps from Groq")
                 raise Exception("No word-level timestamps available")
             
-            logger.info(f"Creating karaoke subtitles for {len(words)} words")
+            logger.info(f"Creating karaoke subtitles for {len(words)} words (NO OVERLAP)")
             
             srt_lines = []
             
@@ -83,10 +83,25 @@ class SubtitleService:
                 start_time = word_info['start']
                 end_time = word_info['end']
                 
-                # Ensure minimum duration of 0.3s per word for readability
+                # CRITICAL: Check if next word exists
+                if idx < len(words) - 1:
+                    next_word_start = words[idx + 1]['start']
+                    
+                    # If there's overlap, cut this word short by 50ms
+                    if end_time >= next_word_start:
+                        end_time = next_word_start - 0.05
+                        logger.debug(f"Word '{word}': adjusted end time to avoid overlap")
+                
+                # Ensure minimum duration of 0.2s per word
                 duration = end_time - start_time
-                if duration < 0.3:
-                    end_time = start_time + 0.3
+                if duration < 0.2:
+                    end_time = start_time + 0.2
+                    
+                    # Re-check overlap after adjustment
+                    if idx < len(words) - 1:
+                        next_word_start = words[idx + 1]['start']
+                        if end_time >= next_word_start:
+                            end_time = next_word_start - 0.05
                 
                 # Format SRT timestamps
                 start_srt = self._format_srt_time(start_time)
@@ -98,7 +113,7 @@ class SubtitleService:
                 srt_lines.append(word)
                 srt_lines.append("")
             
-            logger.info(f"Created {len(words)} karaoke subtitle entries (one per word)")
+            logger.info(f"Created {len(words)} karaoke subtitle entries (NO OVERLAP)")
             return '\n'.join(srt_lines)
         
         except Exception as e:
@@ -134,7 +149,7 @@ class SubtitleService:
             
             output_path = video_path.replace('.mp4', '_subtitled.mp4')
             
-            # Karaoke-style subtitles - ONE WORD, FONT 14, CENTERED
+            # Karaoke-style subtitles - ONE WORD, SAME POSITION ALWAYS
             subtitle_style = (
                 f"FontName=Arial Black,"
                 f"FontSize=14,"
@@ -142,13 +157,13 @@ class SubtitleService:
                 f"PrimaryColour=&H00FFFFFF,"
                 f"OutlineColour=&H00000000,"
                 f"BorderStyle=1,"
-                f"Outline=3,"
-                f"Shadow=0,"
-                f"Alignment=2,"
+                f"Outline=1,"
+                f"Shadow=1,"
+                f"Alignment=2,"  # Bottom center - ALWAYS SAME POSITION
                 f"MarginV=100"
             )
             
-            logger.info("Adding karaoke-style subtitles with aggressive compression...")
+            logger.info("Adding karaoke-style subtitles (NO OVERLAP) with aggressive compression...")
             
             ffmpeg_cmd = [
                 '/usr/bin/ffmpeg', '-i', video_path,
