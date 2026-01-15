@@ -3,7 +3,16 @@ import os
 import tempfile
 import subprocess
 from groq import AsyncGroq
-from config import GROQ_API_KEY
+from config import (
+    GROQ_API_KEY,
+    SUBTITLE_FONT,
+    SUBTITLE_FONT_SIZE,
+    SUBTITLE_COLOR,
+    SUBTITLE_OUTLINE_COLOR,
+    SUBTITLE_OUTLINE_WIDTH,
+    SUBTITLE_MARGIN_V,
+    SUBTITLE_WORDS_PER_CHUNK
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +73,8 @@ class SubtitleService:
     
     def _create_karaoke_srt(self, transcription) -> str:
         """
-        Create karaoke-style subtitles - ONE WORD AT A TIME
-        NO OVERLAP between words - each word finishes BEFORE the next starts
+        Create karaoke-style subtitles - 2 WORDS AT A TIME
+        NO OVERLAP between chunks - each chunk finishes BEFORE the next starts
         """
         try:
             words = transcription.words if hasattr(transcription, 'words') else []
@@ -74,46 +83,58 @@ class SubtitleService:
                 logger.error("No word-level timestamps from Groq")
                 raise Exception("No word-level timestamps available")
             
-            logger.info(f"Creating karaoke subtitles for {len(words)} words (NO OVERLAP)")
+            logger.info(f"Creating karaoke subtitles for {len(words)} words ({SUBTITLE_WORDS_PER_CHUNK} words per chunk, NO OVERLAP)")
             
             srt_lines = []
+            subtitle_index = 1
             
-            for idx, word_info in enumerate(words):
-                word = word_info['word'].strip().upper()
-                start_time = word_info['start']
-                end_time = word_info['end']
+            i = 0
+            while i < len(words):
+                # Get chunk of words (2 words)
+                chunk_size = min(SUBTITLE_WORDS_PER_CHUNK, len(words) - i)
+                chunk = words[i:i + chunk_size]
                 
-                # CRITICAL: Check if next word exists
-                if idx < len(words) - 1:
-                    next_word_start = words[idx + 1]['start']
+                # Get timing
+                start_time = chunk[0]['start']
+                end_time = chunk[-1]['end']
+                
+                # CRITICAL: Check if next chunk exists and avoid overlap
+                if i + chunk_size < len(words):
+                    next_chunk_start = words[i + chunk_size]['start']
                     
-                    # If there's overlap, cut this word short by 50ms
-                    if end_time >= next_word_start:
-                        end_time = next_word_start - 0.05
-                        logger.debug(f"Word '{word}': adjusted end time to avoid overlap")
+                    # If there's overlap, cut this chunk short by 50ms
+                    if end_time >= next_chunk_start:
+                        end_time = next_chunk_start - 0.05
+                        logger.debug(f"Chunk {subtitle_index}: adjusted end time to avoid overlap")
                 
-                # Ensure minimum duration of 0.2s per word
+                # Ensure minimum duration of 0.5s per chunk
                 duration = end_time - start_time
-                if duration < 0.2:
-                    end_time = start_time + 0.2
+                if duration < 0.5:
+                    end_time = start_time + 0.5
                     
                     # Re-check overlap after adjustment
-                    if idx < len(words) - 1:
-                        next_word_start = words[idx + 1]['start']
-                        if end_time >= next_word_start:
-                            end_time = next_word_start - 0.05
+                    if i + chunk_size < len(words):
+                        next_chunk_start = words[i + chunk_size]['start']
+                        if end_time >= next_chunk_start:
+                            end_time = next_chunk_start - 0.05
+                
+                # Create text - all UPPERCASE
+                text = ' '.join([w['word'].strip() for w in chunk]).upper()
                 
                 # Format SRT timestamps
                 start_srt = self._format_srt_time(start_time)
                 end_srt = self._format_srt_time(end_time)
                 
-                # Add to SRT - ONE WORD ONLY
-                srt_lines.append(f"{idx + 1}")
+                # Add to SRT
+                srt_lines.append(f"{subtitle_index}")
                 srt_lines.append(f"{start_srt} --> {end_srt}")
-                srt_lines.append(word)
+                srt_lines.append(text)
                 srt_lines.append("")
+                
+                subtitle_index += 1
+                i += chunk_size
             
-            logger.info(f"Created {len(words)} karaoke subtitle entries (NO OVERLAP)")
+            logger.info(f"Created {subtitle_index - 1} karaoke subtitle chunks (NO OVERLAP)")
             return '\n'.join(srt_lines)
         
         except Exception as e:
@@ -149,21 +170,21 @@ class SubtitleService:
             
             output_path = video_path.replace('.mp4', '_subtitled.mp4')
             
-            # Karaoke-style subtitles - ONE WORD, SAME POSITION ALWAYS
+            # Karaoke-style subtitles - CUSTOMIZABLE STYLE
             subtitle_style = (
-                f"FontName=Arial Black,"
-                f"FontSize=14,"
+                f"FontName={SUBTITLE_FONT},"
+                f"FontSize={SUBTITLE_FONT_SIZE},"
                 f"Bold=1,"
-                f"PrimaryColour=&H00FFFFFF,"
-                f"OutlineColour=&H00000000,"
+                f"PrimaryColour={SUBTITLE_COLOR},"
+                f"OutlineColour={SUBTITLE_OUTLINE_COLOR},"
                 f"BorderStyle=1,"
-                f"Outline=1,"
-                f"Shadow=1,"
-                f"Alignment=2,"  # Bottom center - ALWAYS SAME POSITION
-                f"MarginV=100"
+                f"Outline={SUBTITLE_OUTLINE_WIDTH},"
+                f"Shadow=0,"
+                f"Alignment=2,"
+                f"MarginV={SUBTITLE_MARGIN_V}"
             )
             
-            logger.info("Adding karaoke-style subtitles (NO OVERLAP) with aggressive compression...")
+            logger.info(f"Adding karaoke-style subtitles (Font: {SUBTITLE_FONT}, Size: {SUBTITLE_FONT_SIZE}, {SUBTITLE_WORDS_PER_CHUNK} words per chunk)...")
             
             ffmpeg_cmd = [
                 '/usr/bin/ffmpeg', '-i', video_path,
