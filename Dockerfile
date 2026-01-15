@@ -11,28 +11,28 @@ RUN apt-get update && apt-get install -y \
 # Create fonts directory
 RUN mkdir -p /usr/share/fonts/truetype/custom
 
-# Download fonts - NO -q flag to see errors!
+# Download fonts - CORRECT GitHub URLs!
 RUN cd /tmp && \
     echo "=== DOWNLOADING FONTS ===" && \
-    wget https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-SemiBold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/bebasneue/BebasNeue-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/oswald/Oswald-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/luckiestguy/LuckiestGuy-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/bangers/Bangers-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/permanentmarker/PermanentMarker-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-SemiBold.ttf && \
-    wget https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Black.ttf && \
-    wget https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/lato/Lato-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/righteous/Righteous-Regular.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/raleway/Raleway-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/inter/Inter-Bold.ttf && \
-    wget https://github.com/google/fonts/raw/main/ofl/outfit/Outfit-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/montserrat/Montserrat-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/montserrat/Montserrat-SemiBold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/bebasneue/BebasNeue-Regular.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/anton/Anton-Regular.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/oswald/Oswald-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/luckiestguy/LuckiestGuy-Regular.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/bangers/Bangers-Regular.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/permanentmarker/PermanentMarker-Regular.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/poppins/Poppins-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/poppins/Poppins-SemiBold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/apache/roboto/Roboto-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/apache/roboto/Roboto-Black.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/apache/opensans/OpenSans-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/lato/Lato-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/pacifico/Pacifico-Regular.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/righteous/Righteous-Regular.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/raleway/Raleway-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/inter/Inter-Bold.ttf && \
+    wget https://github.com/google/fonts/raw/refs/heads/main/ofl/outfit/Outfit-Bold.ttf && \
     echo "=== FONTS DOWNLOADED ===" && \
     ls -lah *.ttf && \
     echo "=== MOVING FONTS ===" && \
