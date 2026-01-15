@@ -6,37 +6,37 @@ RUN apt-get update && apt-get install -y \
     fontconfig \
     wget \
     unzip \
+    curl \
     fonts-liberation \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Create fonts directory
-RUN mkdir -p /usr/share/fonts/truetype/google-fonts
+RUN mkdir -p /usr/share/fonts/truetype/custom
 
-# Download Google Fonts as ZIP and extract
+# Download fonts from reliable CDN sources
 RUN cd /tmp && \
-    echo "=== DOWNLOADING FONT PACKS ===" && \
-    wget -O montserrat.zip "https://fonts.google.com/download?family=Montserrat" && \
-    wget -O bebasneue.zip "https://fonts.google.com/download?family=Bebas%20Neue" && \
-    wget -O luckiestguy.zip "https://fonts.google.com/download?family=Luckiest%20Guy" && \
-    wget -O bangers.zip "https://fonts.google.com/download?family=Bangers" && \
-    wget -O anton.zip "https://fonts.google.com/download?family=Anton" && \
-    wget -O poppins.zip "https://fonts.google.com/download?family=Poppins" && \
-    wget -O roboto.zip "https://fonts.google.com/download?family=Roboto" && \
-    wget -O oswald.zip "https://fonts.google.com/download?family=Oswald" && \
-    wget -O permanentmarker.zip "https://fonts.google.com/download?family=Permanent%20Marker" && \
-    wget -O pacifico.zip "https://fonts.google.com/download?family=Pacifico" && \
-    wget -O inter.zip "https://fonts.google.com/download?family=Inter" && \
-    wget -O outfit.zip "https://fonts.google.com/download?family=Outfit" && \
-    echo "=== EXTRACTING FONTS ===" && \
-    unzip -o "*.zip" -d /usr/share/fonts/truetype/google-fonts/ && \
-    echo "=== FONTS EXTRACTED ===" && \
-    find /usr/share/fonts/truetype/google-fonts/ -name "*.ttf" | wc -l && \
-    echo "=== REBUILDING FONT CACHE ===" && \
+    echo "=== DOWNLOADING FONTS FROM CDN ===" && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf" -o Montserrat.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/bebasneue/BebasNeue-Regular.ttf" -o BebasNeue.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/luckiestguy/LuckiestGuy-Regular.ttf" -o LuckiestGuy.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/bangers/Bangers-Regular.ttf" -o Bangers.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf" -o Anton.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf" -o Poppins-Bold.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf" -o Roboto-Bold.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/oswald/Oswald%5Bwght%5D.ttf" -o Oswald.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/permanentmarker/PermanentMarker-Regular.ttf" -o PermanentMarker.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -o Pacifico.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf" -o Inter.ttf && \
+    curl -L "https://github.com/google/fonts/raw/main/ofl/outfit/Outfit%5Bwght%5D.ttf" -o Outfit.ttf && \
+    echo "=== FILES DOWNLOADED ===" && \
+    ls -lah *.ttf && \
+    mv *.ttf /usr/share/fonts/truetype/custom/ && \
+    echo "=== FONTS MOVED ===" && \
+    ls -lah /usr/share/fonts/truetype/custom/ && \
     fc-cache -fv && \
-    echo "=== AVAILABLE FONTS ===" && \
-    fc-list : family | grep -i "luckiest\|montserrat\|bebas\|bangers\|anton" | sort | uniq && \
-    echo "=== CLEANUP ===" && \
+    echo "=== FONTS REGISTERED ===" && \
+    fc-list : family | sort | uniq | head -30 && \
     rm -rf /tmp/*
 
 WORKDIR /app
