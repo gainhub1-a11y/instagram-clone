@@ -20,9 +20,15 @@ UPLOADPOST_API_TOKEN = os.getenv('UPLOADPOST_API_TOKEN')
 UPLOADPOST_PROFILE = os.getenv('UPLOADPOST_PROFILE')
 UPLOADPOST_API_URL = os.getenv('UPLOADPOST_API_URL', 'https://api.upload-post.com/api/upload')
 
-SUBTITLE_FONT = "Arial Black"
-SUBTITLE_FONT_SIZE = 14
-SUBTITLE_COLOR = "#FFFF00"
+# Subtitle configuration - Customizable per user
+SUBTITLE_FONT = os.getenv('SUBTITLE_FONT', 'Luckiest Guy')
+SUBTITLE_FONT_SIZE = int(os.getenv('SUBTITLE_FONT_SIZE', '10'))
+SUBTITLE_COLOR = os.getenv('SUBTITLE_COLOR', '&H00FFFFFF')  # White in ASS format
+SUBTITLE_OUTLINE_COLOR = os.getenv('SUBTITLE_OUTLINE_COLOR', '&H00000000')  # Black
+SUBTITLE_OUTLINE_WIDTH = int(os.getenv('SUBTITLE_OUTLINE_WIDTH', '3'))
+SUBTITLE_MARGIN_V = int(os.getenv('SUBTITLE_MARGIN_V', '100'))
+SUBTITLE_WORDS_PER_CHUNK = int(os.getenv('SUBTITLE_WORDS_PER_CHUNK', '2'))
+
 SUBTITLE_POSITION = "bottom-center"
 SUBTITLE_MAX_WORDS_PER_LINE = 2
 
