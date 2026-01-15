@@ -13,7 +13,7 @@ RUN mkdir -p /usr/share/fonts/truetype/custom
 
 # Download TOP Instagram/TikTok fonts from Google Fonts
 RUN cd /tmp && \
-    # 🔥 MOST POPULAR (Based on 2M+ videos analysis)
+    # 🔥 MOST POPULAR - Montserrat
     wget -q https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Bold.ttf && \
     wget -q https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-SemiBold.ttf && \
     wget -q https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Regular.ttf && \
@@ -25,11 +25,13 @@ RUN cd /tmp && \
     wget -q https://github.com/google/fonts/raw/main/ofl/luckiestguy/LuckiestGuy-Regular.ttf && \
     wget -q https://github.com/google/fonts/raw/main/ofl/bangers/Bangers-Regular.ttf && \
     wget -q https://github.com/google/fonts/raw/main/ofl/permanentmarker/PermanentMarker-Regular.ttf && \
-    # 🚀 MODERN & CLEAN
+    # 🚀 MODERN & CLEAN - Poppins
     wget -q https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf && \
     wget -q https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-SemiBold.ttf && \
-    wget -q https://github.com/google/fonts/raw/main/ofl/roboto/Roboto-Bold.ttf && \
-    wget -q https://github.com/google/fonts/raw/main/ofl/opensans/OpenSans-Bold.ttf && \
+    # 🚀 MODERN & CLEAN - Others
+    wget -q https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf && \
+    wget -q https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Black.ttf && \
+    wget -q https://github.com/google/fonts/raw/main/apache/opensans/OpenSans-Bold.ttf && \
     wget -q https://github.com/google/fonts/raw/main/ofl/lato/Lato-Bold.ttf && \
     # 💫 STYLISH & UNIQUE
     wget -q https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf && \
@@ -38,9 +40,8 @@ RUN cd /tmp && \
     # 🎯 TRENDING 2025
     wget -q https://github.com/google/fonts/raw/main/ofl/inter/Inter-Bold.ttf && \
     wget -q https://github.com/google/fonts/raw/main/ofl/outfit/Outfit-Bold.ttf && \
-    wget -q https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Black.ttf && \
     # Install all fonts
-    mv *.ttf /usr/share/fonts/truetype/custom/ && \
+    mv *.ttf /usr/share/fonts/truetype/custom/ 2>/dev/null || true && \
     fc-cache -f -v && \
     rm -rf /tmp/*
 
