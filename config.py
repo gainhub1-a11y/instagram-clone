@@ -22,7 +22,7 @@ UPLOADPOST_API_URL = os.getenv('UPLOADPOST_API_URL', 'https://api.upload-post.co
 
 # Subtitle configuration - Customizable per user
 # IMPORTANT: Use font names as registered in fontconfig
-SUBTITLE_FONT = os.getenv('SUBTITLE_FONT', 'Bangers')  # ✅ VERIFIED INSTALLED!
+SUBTITLE_FONT = os.getenv('SUBTITLE_FONT', 'Montserrat')  # ✅ IL MIGLIORE!
 SUBTITLE_FONT_SIZE = int(os.getenv('SUBTITLE_FONT_SIZE', '10'))
 SUBTITLE_COLOR = os.getenv('SUBTITLE_COLOR', '&H00FFFFFF')  # White in ASS format
 SUBTITLE_OUTLINE_COLOR = os.getenv('SUBTITLE_OUTLINE_COLOR', '&H00000000')  # Black
