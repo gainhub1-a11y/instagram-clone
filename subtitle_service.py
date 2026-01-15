@@ -17,7 +17,7 @@ class SubtitleService:
     
     async def generate_srt_from_audio(self, video_path: str, language: str = "es") -> str:
         try:
-            logger.info(f"Generating word-level SRT with Groq Whisper: {video_path}")
+            logger.info(f"Generating word-by-word karaoke SRT with Groq Whisper: {video_path}")
             
             audio_path = video_path.replace('.mp4', '_audio.mp3')
             
@@ -53,16 +53,20 @@ class SubtitleService:
             
             logger.info("Groq transcription completed with word-level timing")
             
-            srt_content = self._create_perfect_srt(transcription)
+            srt_content = self._create_karaoke_srt(transcription)
             
-            logger.info(f"Perfect SRT generated: {len(srt_content)} characters")
+            logger.info(f"Karaoke SRT generated: {len(srt_content)} characters")
             return srt_content
         
         except Exception as e:
             logger.error(f"SRT generation failed: {str(e)}")
             raise
     
-    def _create_perfect_srt(self, transcription) -> str:
+    def _create_karaoke_srt(self, transcription) -> str:
+        """
+        Create karaoke-style subtitles - ONE WORD AT A TIME
+        Each word appears exactly when it's spoken, then disappears
+        """
         try:
             words = transcription.words if hasattr(transcription, 'words') else []
             
@@ -70,55 +74,35 @@ class SubtitleService:
                 logger.error("No word-level timestamps from Groq")
                 raise Exception("No word-level timestamps available")
             
-            logger.info(f"Processing {len(words)} words with timestamps")
+            logger.info(f"Creating karaoke subtitles for {len(words)} words")
             
             srt_lines = []
-            subtitle_index = 1
             
-            i = 0
-            while i < len(words):
-                current_word = words[i]['word']
+            for idx, word_info in enumerate(words):
+                word = word_info['word'].strip().upper()
+                start_time = word_info['start']
+                end_time = word_info['end']
                 
-                if len(current_word) > 7 or i == len(words) - 1:
-                    chunk = [words[i]]
-                    chunk_size = 1
-                elif i + 1 < len(words):
-                    next_word = words[i + 1]['word']
-                    if len(current_word) + len(next_word) <= 12:
-                        chunk = [words[i], words[i + 1]]
-                        chunk_size = 2
-                    else:
-                        chunk = [words[i]]
-                        chunk_size = 1
-                else:
-                    chunk = [words[i]]
-                    chunk_size = 1
-                
-                start_time = chunk[0]['start']
-                end_time = chunk[-1]['end']
-                
+                # Ensure minimum duration of 0.3s per word for readability
                 duration = end_time - start_time
-                if duration < 0.5:
-                    end_time = start_time + 0.5
+                if duration < 0.3:
+                    end_time = start_time + 0.3
                 
-                text = ' '.join([w['word'].strip() for w in chunk]).upper()
-                
+                # Format SRT timestamps
                 start_srt = self._format_srt_time(start_time)
                 end_srt = self._format_srt_time(end_time)
                 
-                srt_lines.append(f"{subtitle_index}")
+                # Add to SRT - ONE WORD ONLY
+                srt_lines.append(f"{idx + 1}")
                 srt_lines.append(f"{start_srt} --> {end_srt}")
-                srt_lines.append(text)
+                srt_lines.append(word)
                 srt_lines.append("")
-                
-                subtitle_index += 1
-                i += chunk_size
             
-            logger.info(f"Created {subtitle_index - 1} subtitle entries")
+            logger.info(f"Created {len(words)} karaoke subtitle entries (one per word)")
             return '\n'.join(srt_lines)
         
         except Exception as e:
-            logger.error(f"Failed to create perfect SRT: {str(e)}")
+            logger.error(f"Failed to create karaoke SRT: {str(e)}")
             raise
     
     def _format_srt_time(self, seconds: float) -> str:
@@ -130,7 +114,7 @@ class SubtitleService:
     
     async def add_subtitles_to_video(self, video_data: bytes, srt_content: str = None) -> bytes:
         try:
-            logger.info(f"Adding perfect subtitles to video: {len(video_data)} bytes")
+            logger.info(f"Adding karaoke subtitles to video: {len(video_data)} bytes ({len(video_data)/1024/1024:.2f} MB)")
             
             with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as video_file:
                 video_file.write(video_data)
@@ -139,7 +123,7 @@ class SubtitleService:
             logger.info(f"Video written to temp file: {video_path}")
             
             if not srt_content:
-                logger.info("No SRT provided, generating from audio with Groq...")
+                logger.info("No SRT provided, generating karaoke subtitles with Groq...")
                 srt_content = await self.generate_srt_from_audio(video_path, language="es")
             
             srt_path = video_path.replace('.mp4', '.srt')
@@ -150,26 +134,32 @@ class SubtitleService:
             
             output_path = video_path.replace('.mp4', '_subtitled.mp4')
             
+            # Karaoke-style subtitles - ONE WORD, FONT 14, CENTERED
             subtitle_style = (
                 f"FontName=Arial Black,"
                 f"FontSize=14,"
                 f"Bold=1,"
-                f"PrimaryColour=&H0000FFFF,"
+                f"PrimaryColour=&H00FFFFFF,"
                 f"OutlineColour=&H00000000,"
                 f"BorderStyle=1,"
-                f"Outline=1,"
+                f"Outline=3,"
                 f"Shadow=0,"
                 f"Alignment=2,"
-                f"MarginV=60"
+                f"MarginV=100"
             )
             
-            logger.info("Adding Instagram-style subtitles with FFmpeg...")
+            logger.info("Adding karaoke-style subtitles with aggressive compression...")
             
             ffmpeg_cmd = [
                 '/usr/bin/ffmpeg', '-i', video_path,
                 '-vf', f"subtitles={srt_path}:force_style='{subtitle_style}'",
-                '-c:a', 'copy',
-                '-preset', 'fast',
+                '-c:v', 'libx264',
+                '-preset', 'slow',
+                '-crf', '32',
+                '-maxrate', '1.5M',
+                '-bufsize', '1.5M',
+                '-c:a', 'aac',
+                '-b:a', '96k',
                 output_path,
                 '-y'
             ]
@@ -184,7 +174,11 @@ class SubtitleService:
             with open(output_path, 'rb') as output_file:
                 subtitled_video = output_file.read()
             
-            logger.info(f"Subtitled video read: {len(subtitled_video)} bytes")
+            output_size_mb = len(subtitled_video) / 1024 / 1024
+            logger.info(f"Subtitled video size: {len(subtitled_video)} bytes ({output_size_mb:.2f} MB)")
+            
+            if output_size_mb > 100:
+                logger.warning(f"Video exceeds 100MB Instagram API limit! ({output_size_mb:.2f} MB)")
             
             try:
                 os.remove(video_path)
@@ -194,7 +188,7 @@ class SubtitleService:
             except Exception as cleanup_error:
                 logger.warning(f"Cleanup warning: {cleanup_error}")
             
-            logger.info(f"Perfect subtitles added successfully: {len(subtitled_video)} bytes")
+            logger.info(f"Karaoke subtitles added successfully: {len(subtitled_video)} bytes")
             return subtitled_video
         
         except Exception as e:
