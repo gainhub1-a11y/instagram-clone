@@ -1,11 +1,6 @@
 import logging
 import aiohttp
-import asyncio
-import subprocess
-import tempfile
-import os
 from typing import List, Tuple
-from pathlib import Path
 from config import UPLOADPOST_API_TOKEN, UPLOADPOST_PROFILE, UPLOADPOST_API_URL
 
 logger = logging.getLogger(__name__)
@@ -22,103 +17,6 @@ class UploadPostService:
             self.api_base_url = UPLOADPOST_API_URL.rstrip('/')
         
         logger.info(f"Upload-Post base URL: {self.api_base_url}")
-    
-    async def extract_frames_from_video(self, video_data: bytes, num_frames: int = 3) -> List[bytes]:
-        frames = []
-        temp_video = None
-        temp_dir = None
-        
-        try:
-            temp_dir = tempfile.mkdtemp()
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
-                tmp.write(video_data)
-                temp_video = tmp.name
-            
-            logger.info(f"Extracting {num_frames} frames from video...")
-            
-            try:
-                cmd = [
-                    'ffprobe',
-                    '-v', 'error',
-                    '-show_entries', 'format=duration',
-                    '-of', 'default=noprint_wrappers=1:nokey=1',
-                    temp_video
-                ]
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
-                duration = float(stdout.decode().strip())
-                logger.info(f"Video duration: {duration:.2f}s")
-            except Exception as e:
-                logger.warning(f"Could not get video duration: {e}, using default")
-                duration = 10.0
-            
-            if num_frames == 1:
-                timestamps = [duration / 2]
-            else:
-                start = max(1.0, duration * 0.1)
-                end = min(duration - 1.0, duration * 0.9)
-                if end <= start:
-                    end = start + 1
-                interval = (end - start) / (num_frames - 1) if num_frames > 1 else 0
-                timestamps = [start + (i * interval) for i in range(num_frames)]
-            
-            for i, timestamp in enumerate(timestamps):
-                output_path = os.path.join(temp_dir, f"frame_{i:03d}.jpg")
-                
-                cmd = [
-                    'ffmpeg',
-                    '-ss', str(timestamp),
-                    '-i', temp_video,
-                    '-vframes', '1',
-                    '-vf', 'scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2',
-                    '-q:v', '2',
-                    '-y',
-                    output_path
-                ]
-                
-                try:
-                    proc = await asyncio.create_subprocess_exec(
-                        *cmd,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    await asyncio.wait_for(proc.communicate(), timeout=15)
-                    
-                    with open(output_path, 'rb') as f:
-                        frame_data = f.read()
-                        frames.append(frame_data)
-                    
-                    logger.info(f"Frame {i+1}/{num_frames} extracted @ {timestamp:.2f}s ({len(frame_data)} bytes)")
-                    
-                except asyncio.TimeoutError:
-                    logger.error(f"Timeout extracting frame {i+1}")
-                except Exception as e:
-                    logger.error(f"Error extracting frame {i+1}: {e}")
-            
-            if not frames:
-                raise Exception("Failed to extract any frames from video")
-            
-            logger.info(f"Successfully extracted {len(frames)} frames from video")
-            return frames
-            
-        except Exception as e:
-            logger.error(f"Failed to extract frames: {e}")
-            raise
-            
-        finally:
-            try:
-                if temp_video and os.path.exists(temp_video):
-                    os.unlink(temp_video)
-                if temp_dir and os.path.exists(temp_dir):
-                    import shutil
-                    shutil.rmtree(temp_dir)
-            except Exception as e:
-                logger.warning(f"Cleanup warning: {e}")
     
     async def publish_photo(self, image_data: bytes, caption: str, filename: str = "photo.jpg") -> dict:
         try:
@@ -144,7 +42,6 @@ class UploadPostService:
                     response_text = await response.text()
                     
                     logger.info(f"Upload-Post response status: {response_status}")
-                    logger.debug(f"Upload-Post response body: {response_text[:500]}")
                     
                     if response_status not in [200, 201]:
                         logger.error(f"Upload-Post error response: {response_text}")
@@ -159,6 +56,12 @@ class UploadPostService:
                                 error_msg = result.get('message', result.get('error', 'Unknown error'))
                                 logger.error(f"Upload-Post returned error: {error_msg}")
                                 raise Exception(f"Upload-Post returned error: {error_msg}")
+                            
+                            instagram_result = result.get('results', {}).get('instagram', {})
+                            if not instagram_result.get('success'):
+                                error_msg = instagram_result.get('error', 'Unknown Instagram error')
+                                logger.error(f"Instagram upload failed: {error_msg}")
+                                raise Exception(f"Instagram upload failed: {error_msg}")
                         
                         logger.info(f"Photo published successfully to Instagram")
                         return result
@@ -204,7 +107,6 @@ class UploadPostService:
                     response_text = await response.text()
                     
                     logger.info(f"Upload-Post response status: {response_status}")
-                    logger.debug(f"Upload-Post response body: {response_text[:500]}")
                     
                     if response_status not in [200, 201]:
                         logger.error(f"Upload-Post error response: {response_text}")
@@ -219,6 +121,12 @@ class UploadPostService:
                                 error_msg = result.get('message', result.get('error', 'Unknown error'))
                                 logger.error(f"Upload-Post returned error: {error_msg}")
                                 raise Exception(f"Upload-Post returned error: {error_msg}")
+                            
+                            instagram_result = result.get('results', {}).get('instagram', {})
+                            if not instagram_result.get('success'):
+                                error_msg = instagram_result.get('error', 'Unknown Instagram error')
+                                logger.error(f"Instagram upload failed: {error_msg}")
+                                raise Exception(f"Instagram upload failed: {error_msg}")
                         
                         logger.info(f"Photo carousel published successfully to Instagram")
                         return result
@@ -237,47 +145,70 @@ class UploadPostService:
             logger.error(f"Failed to publish photo carousel: {str(e)}")
             raise
     
+    async def publish_video_carousel(self, videos_data: List[bytes], caption: str) -> dict:
+        try:
+            logger.info(f"Publishing video carousel to Instagram: {len(videos_data)} videos")
+            
+            results = []
+            
+            for idx, video_data in enumerate(videos_data):
+                logger.info(f"Publishing video {idx+1}/{len(videos_data)} as individual reel...")
+                try:
+                    result = await self.publish_reel(video_data, caption, f"video_{idx}.mp4")
+                    results.append(result)
+                    logger.info(f"Video {idx+1}/{len(videos_data)} published successfully")
+                except Exception as e:
+                    logger.error(f"Failed to publish video {idx+1}/{len(videos_data)}: {e}")
+                    results.append({"success": False, "error": str(e)})
+            
+            logger.info(f"Video carousel publishing completed: {len([r for r in results if r.get('success', True)])} successful")
+            return {"success": True, "results": results}
+        
+        except Exception as e:
+            logger.error(f"Failed to publish video carousel: {str(e)}")
+            raise
+    
     async def publish_mixed_carousel(self, items: List[Tuple[bytes, str]], caption: str) -> dict:
         try:
             logger.info(f"Publishing mixed carousel to Instagram: {len(items)} items")
             
-            all_photos = []
-            video_count = 0
-            photo_count = 0
+            photos = []
+            videos = []
             
             for idx, (data, media_type) in enumerate(items):
                 if media_type == 'photo':
-                    photo_count += 1
                     logger.info(f"Item {idx+1}: Photo ({len(data)} bytes)")
-                    all_photos.append(data)
-                    
+                    photos.append(data)
                 elif media_type == 'video':
-                    video_count += 1
-                    logger.info(f"Item {idx+1}: Video ({len(data)} bytes) - converting to frames...")
-                    
-                    try:
-                        frames = await self.extract_frames_from_video(data, num_frames=3)
-                        all_photos.extend(frames)
-                        logger.info(f"Video converted to {len(frames)} frames")
-                    except Exception as e:
-                        logger.error(f"Failed to extract frames from video: {e}")
-                        logger.warning(f"Skipping this video")
-                        continue
+                    logger.info(f"Item {idx+1}: Video ({len(data)} bytes)")
+                    videos.append(data)
             
-            if not all_photos:
-                raise Exception("No photos found after processing mixed carousel")
+            logger.info(f"Split carousel: {len(photos)} photos, {len(videos)} videos")
             
-            logger.info(f"Final carousel composition:")
-            logger.info(f"Original photos: {photo_count}")
-            logger.info(f"Videos converted: {video_count}")
-            logger.info(f"Total frames: {len(all_photos)}")
+            results = {}
             
-            if len(all_photos) > 10:
-                logger.warning(f"Carousel has {len(all_photos)} items (max 10)")
-                logger.warning(f"Publishing only first 10 items")
-                all_photos = all_photos[:10]
+            if photos:
+                logger.info(f"Publishing photo carousel: {len(photos)} photos")
+                try:
+                    photo_result = await self.publish_carousel(photos, caption)
+                    results['photos'] = photo_result
+                    logger.info(f"Photo carousel published successfully")
+                except Exception as e:
+                    logger.error(f"Failed to publish photo carousel: {e}")
+                    results['photos'] = {"success": False, "error": str(e)}
             
-            return await self.publish_carousel(all_photos, caption)
+            if videos:
+                logger.info(f"Publishing video carousel: {len(videos)} videos as separate reels")
+                try:
+                    video_result = await self.publish_video_carousel(videos, caption)
+                    results['videos'] = video_result
+                    logger.info(f"Video carousel published successfully")
+                except Exception as e:
+                    logger.error(f"Failed to publish video carousel: {e}")
+                    results['videos'] = {"success": False, "error": str(e)}
+            
+            logger.info(f"Mixed carousel published: photos={bool(photos)}, videos={bool(videos)}")
+            return {"success": True, "results": results}
         
         except Exception as e:
             logger.error(f"Failed to publish mixed carousel: {str(e)}")
@@ -307,7 +238,6 @@ class UploadPostService:
                     response_text = await response.text()
                     
                     logger.info(f"Upload-Post response status: {response_status}")
-                    logger.debug(f"Upload-Post response body: {response_text[:500]}")
                     
                     if response_status not in [200, 201]:
                         logger.error(f"Upload-Post error response: {response_text}")
@@ -322,6 +252,12 @@ class UploadPostService:
                                 error_msg = result.get('message', result.get('error', 'Unknown error'))
                                 logger.error(f"Upload-Post returned error: {error_msg}")
                                 raise Exception(f"Upload-Post returned error: {error_msg}")
+                            
+                            instagram_result = result.get('results', {}).get('instagram', {})
+                            if not instagram_result.get('success'):
+                                error_msg = instagram_result.get('error', 'Unknown Instagram error')
+                                logger.error(f"Instagram upload failed: {error_msg}")
+                                raise Exception(f"Instagram upload failed: {error_msg}")
                         
                         logger.info(f"Reel published successfully to Instagram")
                         return result
