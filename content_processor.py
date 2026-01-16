@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from telegram import Bot, Message
 from io import BytesIO
 
@@ -35,7 +35,8 @@ class ContentProcessor:
         self.subtitle = subtitle_service
         self.uploadpost = uploadpost_service
         
-        self.carousel_groups: Dict[str, List[bytes]] = {}
+        # Store carousel items with their types
+        self.carousel_groups: Dict[str, List[Tuple[bytes, str]]] = {}  # (data, type: 'photo' or 'video')
         self.carousel_captions: Dict[str, str] = {}
     
     async def process_message(self, message: Message):
@@ -97,11 +98,23 @@ class ContentProcessor:
             self.carousel_captions[media_group_id] = message.caption or ""
             logger.info(f"New carousel group started: {media_group_id}")
         
-        photo = message.photo[-1]
-        file = await self.bot.get_file(photo.file_id)
-        photo_data = await file.download_as_bytearray()
+        # Check if it's a photo or video
+        if message.photo:
+            photo = message.photo[-1]
+            file = await self.bot.get_file(photo.file_id)
+            media_data = await file.download_as_bytearray()
+            media_type = 'photo'
+            logger.info(f"Carousel photo added: {len(media_data)} bytes")
+        elif message.video:
+            file = await self.bot.get_file(message.video.file_id)
+            media_data = await file.download_as_bytearray()
+            media_type = 'video'
+            logger.info(f"Carousel video added: {len(media_data)} bytes")
+        else:
+            logger.warning(f"Unsupported carousel media type in message {message.message_id}")
+            return
         
-        self.carousel_groups[media_group_id].append(bytes(photo_data))
+        self.carousel_groups[media_group_id].append((bytes(media_data), media_type))
         
         logger.info(f"Carousel item added: {len(self.carousel_groups[media_group_id])}/{MAX_CAROUSEL_ITEMS}")
         
@@ -114,10 +127,14 @@ class ContentProcessor:
         if media_group_id not in self.carousel_groups:
             return
         
-        images = self.carousel_groups[media_group_id]
+        items = self.carousel_groups[media_group_id]
         caption = self.carousel_captions.get(media_group_id, "")
         
-        logger.info(f"Publishing carousel: {len(images)} photos")
+        # Check carousel content type
+        has_photos = any(item_type == 'photo' for _, item_type in items)
+        has_videos = any(item_type == 'video' for _, item_type in items)
+        
+        logger.info(f"Publishing carousel: {len(items)} items (photos: {has_photos}, videos: {has_videos})")
         
         try:
             if caption:
@@ -134,12 +151,38 @@ class ContentProcessor:
             if len(translated_caption) > CAPTION_MAX_LENGTH:
                 translated_caption = translated_caption[:CAPTION_MAX_LENGTH-3] + "..."
             
-            publish_with_retry = self.error_handler.with_retry(
-                module_name="InstagramPublish",
-                scenario="Publishing carousel to Instagram"
-            )(self.uploadpost.publish_carousel)
-            
-            await publish_with_retry(images, translated_caption)
+            # Decide which publish method to use
+            if has_videos and has_photos:
+                # Mixed carousel (photos + videos)
+                logger.info("Publishing MIXED carousel (photos + videos)")
+                publish_with_retry = self.error_handler.with_retry(
+                    module_name="InstagramPublish",
+                    scenario="Publishing mixed carousel to Instagram"
+                )(self.uploadpost.publish_mixed_carousel)
+                
+                await publish_with_retry(items, translated_caption)
+                
+            elif has_videos:
+                # Video-only carousel
+                logger.info("Publishing VIDEO carousel")
+                publish_with_retry = self.error_handler.with_retry(
+                    module_name="InstagramPublish",
+                    scenario="Publishing video carousel to Instagram"
+                )(self.uploadpost.publish_mixed_carousel)
+                
+                await publish_with_retry(items, translated_caption)
+                
+            else:
+                # Photo-only carousel
+                logger.info("Publishing PHOTO carousel")
+                media_data_list = [data for data, _ in items]
+                
+                publish_with_retry = self.error_handler.with_retry(
+                    module_name="InstagramPublish",
+                    scenario="Publishing photo carousel to Instagram"
+                )(self.uploadpost.publish_carousel)
+                
+                await publish_with_retry(media_data_list, translated_caption)
             
             logger.info("Carousel published successfully to Instagram")
             
