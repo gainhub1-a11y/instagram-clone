@@ -11,11 +11,14 @@ class UploadPostService:
     def __init__(self):
         self.api_token = UPLOADPOST_API_TOKEN
         self.profile = UPLOADPOST_PROFILE
-        self.api_url = UPLOADPOST_API_URL
+        # Base URL without endpoint
+        self.api_base_url = UPLOADPOST_API_URL.rstrip('/api/upload')
+        if not self.api_base_url.endswith('/api'):
+            self.api_base_url = self.api_base_url.split('/api')[0] + '/api'
     
     async def publish_photo(self, image_data: bytes, caption: str, filename: str = "photo.jpg") -> dict:
         """
-        Publish a single photo to Instagram
+        Publish a single photo to Instagram using upload_photos endpoint
         """
         try:
             logger.info(f"Publishing photo to Instagram: {filename}")
@@ -23,7 +26,6 @@ class UploadPostService:
             async with aiohttp.ClientSession() as session:
                 form = aiohttp.FormData()
                 form.add_field('photos[]', image_data, filename=filename, content_type='image/jpeg')
-                form.add_field('video', '')  # Empty video field required by API
                 form.add_field('title', caption[:100])
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
@@ -33,7 +35,11 @@ class UploadPostService:
                     'Authorization': f'Apikey {self.api_token}'
                 }
                 
-                async with session.post(self.api_url, data=form, headers=headers) as response:
+                # Use /api/upload_photos endpoint for photos
+                url = f"{self.api_base_url}/upload_photos"
+                logger.info(f"Sending request to: {url}")
+                
+                async with session.post(url, data=form, headers=headers) as response:
                     if response.status not in [200, 201]:
                         error_text = await response.text()
                         raise Exception(f"Upload-Post API error: {response.status} - {error_text}")
@@ -49,7 +55,7 @@ class UploadPostService:
     
     async def publish_carousel(self, items_data: List[bytes], caption: str) -> dict:
         """
-        Publish carousel of ONLY photos to Instagram
+        Publish carousel of ONLY photos to Instagram using upload_photos endpoint
         """
         try:
             logger.info(f"Publishing photo carousel to Instagram: {len(items_data)} photos")
@@ -61,9 +67,6 @@ class UploadPostService:
                 for idx, image_data in enumerate(items_data):
                     form.add_field('photos[]', image_data, filename=f'photo_{idx}.jpg', content_type='image/jpeg')
                 
-                # Empty video field required by Upload-Post API
-                form.add_field('video', '')
-                
                 form.add_field('title', caption[:100])
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
@@ -73,7 +76,11 @@ class UploadPostService:
                     'Authorization': f'Apikey {self.api_token}'
                 }
                 
-                async with session.post(self.api_url, data=form, headers=headers) as response:
+                # Use /api/upload_photos endpoint for photo carousels
+                url = f"{self.api_base_url}/upload_photos"
+                logger.info(f"Sending request to: {url}")
+                
+                async with session.post(url, data=form, headers=headers) as response:
                     if response.status not in [200, 201]:
                         error_text = await response.text()
                         raise Exception(f"Upload-Post API error: {response.status} - {error_text}")
@@ -90,46 +97,28 @@ class UploadPostService:
     async def publish_mixed_carousel(self, items: List[Tuple[bytes, str]], caption: str) -> dict:
         """
         Publish carousel with MIXED content (photos + videos) to Instagram
-        items: List of (data, type) where type is 'photo' or 'video'
+        Note: Instagram API may not support mixed carousels via Upload-Post
+        This will attempt to publish using photos endpoint
         """
         try:
             logger.info(f"Publishing mixed carousel to Instagram: {len(items)} items")
             
-            async with aiohttp.ClientSession() as session:
-                form = aiohttp.FormData()
-                
-                photo_count = 0
-                video_count = 0
-                
-                # Add all items with appropriate field names
-                for idx, (media_data, media_type) in enumerate(items):
-                    if media_type == 'photo':
-                        form.add_field('photos[]', media_data, filename=f'photo_{photo_count}.jpg', content_type='image/jpeg')
-                        photo_count += 1
-                    elif media_type == 'video':
-                        form.add_field('videos[]', media_data, filename=f'video_{video_count}.mp4', content_type='video/mp4')
-                        video_count += 1
-                
-                logger.info(f"Mixed carousel: {photo_count} photos, {video_count} videos")
-                
-                form.add_field('title', caption[:100])
-                form.add_field('description', caption)
-                form.add_field('user', self.profile)
-                form.add_field('platform[]', 'instagram')
-                
-                headers = {
-                    'Authorization': f'Apikey {self.api_token}'
-                }
-                
-                async with session.post(self.api_url, data=form, headers=headers) as response:
-                    if response.status not in [200, 201]:
-                        error_text = await response.text()
-                        raise Exception(f"Upload-Post API error: {response.status} - {error_text}")
-                    
-                    result = await response.json()
-                
-                logger.info(f"Mixed carousel published successfully to Instagram")
-                return result
+            # Check if we have videos
+            has_videos = any(media_type == 'video' for _, media_type in items)
+            
+            if has_videos:
+                logger.warning("Mixed carousel with videos - Instagram may not support this via Upload-Post API")
+                logger.info("Converting to photo-only carousel by skipping videos")
+                # Filter only photos
+                photo_items = [data for data, media_type in items if media_type == 'photo']
+                if photo_items:
+                    return await self.publish_carousel(photo_items, caption)
+                else:
+                    raise Exception("No photos found in mixed carousel after filtering videos")
+            else:
+                # All photos
+                photo_items = [data for data, _ in items]
+                return await self.publish_carousel(photo_items, caption)
         
         except Exception as e:
             logger.error(f"Failed to publish mixed carousel: {str(e)}")
@@ -137,7 +126,7 @@ class UploadPostService:
     
     async def publish_reel(self, video_data: bytes, caption: str, filename: str = "reel.mp4") -> dict:
         """
-        Publish a video/reel to Instagram
+        Publish a video/reel to Instagram using upload endpoint
         """
         try:
             logger.info(f"Publishing reel to Instagram: {filename}")
@@ -154,9 +143,11 @@ class UploadPostService:
                     'Authorization': f'Apikey {self.api_token}'
                 }
                 
-                logger.info(f"Sending request to: {self.api_url}")
+                # Use /api/upload endpoint for videos
+                url = f"{self.api_base_url}/upload"
+                logger.info(f"Sending request to: {url}")
                 
-                async with session.post(self.api_url, data=form, headers=headers) as response:
+                async with session.post(url, data=form, headers=headers) as response:
                     response_status = response.status
                     logger.info(f"Response status: {response_status}")
                     
