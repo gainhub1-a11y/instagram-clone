@@ -14,13 +14,17 @@ class UploadPostService:
         self.api_url = UPLOADPOST_API_URL
     
     async def publish_photo(self, image_data: bytes, caption: str, filename: str = "photo.jpg") -> dict:
+        """
+        Publish a single photo to Instagram
+        """
         try:
             logger.info(f"Publishing photo to Instagram: {filename}")
             
             async with aiohttp.ClientSession() as session:
                 form = aiohttp.FormData()
                 form.add_field('photos[]', image_data, filename=filename, content_type='image/jpeg')
-                form.add_field('title', caption[:100])  # ✅ ADDED
+                form.add_field('video', '')  # Empty video field required by API
+                form.add_field('title', caption[:100])
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
@@ -46,7 +50,6 @@ class UploadPostService:
     async def publish_carousel(self, items_data: List[bytes], caption: str) -> dict:
         """
         Publish carousel of ONLY photos to Instagram
-        For pure photo carousels
         """
         try:
             logger.info(f"Publishing photo carousel to Instagram: {len(items_data)} photos")
@@ -58,8 +61,10 @@ class UploadPostService:
                 for idx, image_data in enumerate(items_data):
                     form.add_field('photos[]', image_data, filename=f'photo_{idx}.jpg', content_type='image/jpeg')
                 
-                # Upload-Post requires BOTH title AND description
-                form.add_field('title', caption[:100])  # ✅ ADDED - Max 100 chars
+                # Empty video field required by Upload-Post API
+                form.add_field('video', '')
+                
+                form.add_field('title', caption[:100])
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
@@ -107,8 +112,7 @@ class UploadPostService:
                 
                 logger.info(f"Mixed carousel: {photo_count} photos, {video_count} videos")
                 
-                # Upload-Post requires BOTH title AND description
-                form.add_field('title', caption[:100])  # ✅ ADDED
+                form.add_field('title', caption[:100])
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
@@ -132,6 +136,9 @@ class UploadPostService:
             raise
     
     async def publish_reel(self, video_data: bytes, caption: str, filename: str = "reel.mp4") -> dict:
+        """
+        Publish a video/reel to Instagram
+        """
         try:
             logger.info(f"Publishing reel to Instagram: {filename}")
             
