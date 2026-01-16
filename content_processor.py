@@ -289,32 +289,3 @@ class ContentProcessor:
         except Exception as e:
             logger.error(f"Video processing failed: {str(e)}")
             raise
-```
-
----
-
-## 🚀 Istruzioni per GitHub
-
-1. **Vai su GitHub** → tuo repository
-2. **Apri** `content_processor.py`
-3. **Edit** (✏️)
-4. **CTRL+A** → **CANC** (cancella tutto)
-5. **COPIA** tutto il codice qui sopra
-6. **INCOLLA** su GitHub
-7. **Commit message**: `Add debug logging for carousel publishing`
-8. **Commit changes**
-
----
-
-## 📊 Cosa Cambierà nei Log
-
-Dopo questo aggiornamento, quando tenti di pubblicare un carousel misto vedrai:
-```
-Publishing MIXED carousel (photos + videos)
-Items to publish: [('photo', 121473), ('photo', 167550), ('photo', 408618), ('video', 3322860)]
-Calling publish_mixed_carousel...
-Item 1: Photo (121473 bytes)
-Item 2: Photo (167550 bytes)
-Item 3: Photo (408618 bytes)
-Item 4: Video (3322860 bytes) - converting to frames...
-[QUI VEDREMO L'ERRORE VERO!]
