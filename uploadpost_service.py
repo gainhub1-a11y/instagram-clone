@@ -11,10 +11,13 @@ class UploadPostService:
     def __init__(self):
         self.api_token = UPLOADPOST_API_TOKEN
         self.profile = UPLOADPOST_PROFILE
-        # Base URL without endpoint
-        self.api_base_url = UPLOADPOST_API_URL.rstrip('/api/upload')
-        if not self.api_base_url.endswith('/api'):
-            self.api_base_url = self.api_base_url.split('/api')[0] + '/api'
+        # Fix: Extract base URL correctly
+        if '/api/upload' in UPLOADPOST_API_URL:
+            self.api_base_url = UPLOADPOST_API_URL.rsplit('/api/upload', 1)[0]
+        else:
+            self.api_base_url = UPLOADPOST_API_URL.rstrip('/')
+        
+        logger.info(f"Upload-Post base URL: {self.api_base_url}")
     
     async def publish_photo(self, image_data: bytes, caption: str, filename: str = "photo.jpg") -> dict:
         """
@@ -36,7 +39,7 @@ class UploadPostService:
                 }
                 
                 # Use /api/upload_photos endpoint for photos
-                url = f"{self.api_base_url}/upload_photos"
+                url = f"{self.api_base_url}/api/upload_photos"
                 logger.info(f"Sending request to: {url}")
                 
                 async with session.post(url, data=form, headers=headers) as response:
@@ -77,7 +80,7 @@ class UploadPostService:
                 }
                 
                 # Use /api/upload_photos endpoint for photo carousels
-                url = f"{self.api_base_url}/upload_photos"
+                url = f"{self.api_base_url}/api/upload_photos"
                 logger.info(f"Sending request to: {url}")
                 
                 async with session.post(url, data=form, headers=headers) as response:
@@ -144,7 +147,7 @@ class UploadPostService:
                 }
                 
                 # Use /api/upload endpoint for videos
-                url = f"{self.api_base_url}/upload"
+                url = f"{self.api_base_url}/api/upload"
                 logger.info(f"Sending request to: {url}")
                 
                 async with session.post(url, data=form, headers=headers) as response:
