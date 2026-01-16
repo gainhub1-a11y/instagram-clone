@@ -1,5 +1,6 @@
 import logging
 import aiohttp
+import asyncio
 import subprocess
 import tempfile
 import os
@@ -22,7 +23,7 @@ class UploadPostService:
         
         logger.info(f"Upload-Post base URL: {self.api_base_url}")
     
-    def extract_frames_from_video(self, video_data: bytes, num_frames: int = 3) -> List[bytes]:
+    async def extract_frames_from_video(self, video_data: bytes, num_frames: int = 3) -> List[bytes]:
         frames = []
         temp_video = None
         temp_dir = None
@@ -44,8 +45,13 @@ class UploadPostService:
                     '-of', 'default=noprint_wrappers=1:nokey=1',
                     temp_video
                 ]
-                result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
-                duration = float(result.stdout.strip())
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                duration = float(stdout.decode().strip())
                 logger.info(f"Video duration: {duration:.2f}s")
             except Exception as e:
                 logger.warning(f"Could not get video duration: {e}, using default")
@@ -76,7 +82,12 @@ class UploadPostService:
                 ]
                 
                 try:
-                    subprocess.run(cmd, capture_output=True, check=True, timeout=15)
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await asyncio.wait_for(proc.communicate(), timeout=15)
                     
                     with open(output_path, 'rb') as f:
                         frame_data = f.read()
@@ -84,9 +95,9 @@ class UploadPostService:
                     
                     logger.info(f"Frame {i+1}/{num_frames} extracted @ {timestamp:.2f}s ({len(frame_data)} bytes)")
                     
-                except subprocess.TimeoutExpired:
+                except asyncio.TimeoutError:
                     logger.error(f"Timeout extracting frame {i+1}")
-                except subprocess.CalledProcessError as e:
+                except Exception as e:
                     logger.error(f"Error extracting frame {i+1}: {e}")
             
             if not frames:
@@ -245,7 +256,7 @@ class UploadPostService:
                     logger.info(f"Item {idx+1}: Video ({len(data)} bytes) - converting to frames...")
                     
                     try:
-                        frames = self.extract_frames_from_video(data, num_frames=3)
+                        frames = await self.extract_frames_from_video(data, num_frames=3)
                         all_photos.extend(frames)
                         logger.info(f"Video converted to {len(frames)} frames")
                     except Exception as e:
