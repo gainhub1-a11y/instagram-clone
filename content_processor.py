@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from telegram import Bot, Message
 from io import BytesIO
 
@@ -38,6 +38,7 @@ class ContentProcessor:
         # Store carousel items with their types
         self.carousel_groups: Dict[str, List[Tuple[bytes, str]]] = {}  # (data, type: 'photo' or 'video')
         self.carousel_captions: Dict[str, str] = {}
+        self.carousel_timers: Dict[str, asyncio.Task] = {}  # Timer per ogni carousel
     
     async def process_message(self, message: Message):
         try:
@@ -118,10 +119,23 @@ class ContentProcessor:
         
         logger.info(f"Carousel item added: {len(self.carousel_groups[media_group_id])}/{MAX_CAROUSEL_ITEMS}")
         
-        await asyncio.sleep(CAROUSEL_WAIT_TIMEOUT)
+        # Cancel previous timer if exists
+        if media_group_id in self.carousel_timers:
+            self.carousel_timers[media_group_id].cancel()
+            logger.info(f"Cancelled previous timer for carousel {media_group_id}")
         
-        if len(self.carousel_groups[media_group_id]) <= MAX_CAROUSEL_ITEMS:
-            await self.publish_carousel(media_group_id)
+        # Create new timer task
+        async def delayed_publish():
+            try:
+                await asyncio.sleep(CAROUSEL_WAIT_TIMEOUT)
+                logger.info(f"Timer expired for carousel {media_group_id}, publishing now")
+                if media_group_id in self.carousel_groups:
+                    await self.publish_carousel(media_group_id)
+            except asyncio.CancelledError:
+                logger.info(f"Timer cancelled for carousel {media_group_id}")
+        
+        self.carousel_timers[media_group_id] = asyncio.create_task(delayed_publish())
+        logger.info(f"Started new timer ({CAROUSEL_WAIT_TIMEOUT}s) for carousel {media_group_id}")
     
     async def publish_carousel(self, media_group_id: str):
         if media_group_id not in self.carousel_groups:
@@ -186,9 +200,12 @@ class ContentProcessor:
             
             logger.info("Carousel published successfully to Instagram")
             
+            # Cleanup
             del self.carousel_groups[media_group_id]
             if media_group_id in self.carousel_captions:
                 del self.carousel_captions[media_group_id]
+            if media_group_id in self.carousel_timers:
+                del self.carousel_timers[media_group_id]
         
         except Exception as e:
             logger.error(f"Carousel publishing failed: {str(e)}")
