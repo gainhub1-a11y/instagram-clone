@@ -20,6 +20,7 @@ class UploadPostService:
             async with aiohttp.ClientSession() as session:
                 form = aiohttp.FormData()
                 form.add_field('photos[]', image_data, filename=filename, content_type='image/jpeg')
+                form.add_field('title', caption[:100])  # ✅ ADDED
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
@@ -57,6 +58,8 @@ class UploadPostService:
                 for idx, image_data in enumerate(items_data):
                     form.add_field('photos[]', image_data, filename=f'photo_{idx}.jpg', content_type='image/jpeg')
                 
+                # Upload-Post requires BOTH title AND description
+                form.add_field('title', caption[:100])  # ✅ ADDED - Max 100 chars
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
@@ -104,6 +107,8 @@ class UploadPostService:
                 
                 logger.info(f"Mixed carousel: {photo_count} photos, {video_count} videos")
                 
+                # Upload-Post requires BOTH title AND description
+                form.add_field('title', caption[:100])  # ✅ ADDED
                 form.add_field('description', caption)
                 form.add_field('user', self.profile)
                 form.add_field('platform[]', 'instagram')
