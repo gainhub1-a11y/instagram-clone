@@ -35,10 +35,9 @@ class ContentProcessor:
         self.subtitle = subtitle_service
         self.uploadpost = uploadpost_service
         
-        # Store carousel items with their types
-        self.carousel_groups: Dict[str, List[Tuple[bytes, str]]] = {}  # (data, type: 'photo' or 'video')
+        self.carousel_groups: Dict[str, List[Tuple[bytes, str]]] = {}
         self.carousel_captions: Dict[str, str] = {}
-        self.carousel_timers: Dict[str, asyncio.Task] = {}  # Timer per ogni carousel
+        self.carousel_timers: Dict[str, asyncio.Task] = {}
     
     async def process_message(self, message: Message):
         try:
@@ -99,7 +98,6 @@ class ContentProcessor:
             self.carousel_captions[media_group_id] = message.caption or ""
             logger.info(f"New carousel group started: {media_group_id}")
         
-        # Check if it's a photo or video
         if message.photo:
             photo = message.photo[-1]
             file = await self.bot.get_file(photo.file_id)
@@ -119,12 +117,10 @@ class ContentProcessor:
         
         logger.info(f"Carousel item added: {len(self.carousel_groups[media_group_id])}/{MAX_CAROUSEL_ITEMS}")
         
-        # Cancel previous timer if exists
         if media_group_id in self.carousel_timers:
             self.carousel_timers[media_group_id].cancel()
             logger.info(f"Cancelled previous timer for carousel {media_group_id}")
         
-        # Create new timer task
         async def delayed_publish():
             try:
                 await asyncio.sleep(CAROUSEL_WAIT_TIMEOUT)
@@ -144,7 +140,6 @@ class ContentProcessor:
         items = self.carousel_groups[media_group_id]
         caption = self.carousel_captions.get(media_group_id, "")
         
-        # Check carousel content type
         has_photos = any(item_type == 'photo' for _, item_type in items)
         has_videos = any(item_type == 'video' for _, item_type in items)
         
@@ -165,29 +160,45 @@ class ContentProcessor:
             if len(translated_caption) > CAPTION_MAX_LENGTH:
                 translated_caption = translated_caption[:CAPTION_MAX_LENGTH-3] + "..."
             
-            # Decide which publish method to use
             if has_videos and has_photos:
-                # Mixed carousel (photos + videos)
                 logger.info("Publishing MIXED carousel (photos + videos)")
-                publish_with_retry = self.error_handler.with_retry(
-                    module_name="InstagramPublish",
-                    scenario="Publishing mixed carousel to Instagram"
-                )(self.uploadpost.publish_mixed_carousel)
+                logger.info(f"Items to publish: {[(media_type, len(data)) for data, media_type in items]}")
                 
-                await publish_with_retry(items, translated_caption)
+                try:
+                    publish_with_retry = self.error_handler.with_retry(
+                        module_name="InstagramPublish",
+                        scenario="Publishing mixed carousel to Instagram"
+                    )(self.uploadpost.publish_mixed_carousel)
+                    
+                    logger.info("Calling publish_mixed_carousel...")
+                    result = await publish_with_retry(items, translated_caption)
+                    logger.info(f"publish_mixed_carousel returned: {result}")
+                    
+                except Exception as e:
+                    logger.error(f"CAUGHT EXCEPTION in publish_mixed_carousel: {e}")
+                    logger.exception("Full traceback:")
+                    raise
                 
             elif has_videos:
-                # Video-only carousel
                 logger.info("Publishing VIDEO carousel")
-                publish_with_retry = self.error_handler.with_retry(
-                    module_name="InstagramPublish",
-                    scenario="Publishing video carousel to Instagram"
-                )(self.uploadpost.publish_mixed_carousel)
+                logger.info(f"Items to publish: {[(media_type, len(data)) for data, media_type in items]}")
                 
-                await publish_with_retry(items, translated_caption)
+                try:
+                    publish_with_retry = self.error_handler.with_retry(
+                        module_name="InstagramPublish",
+                        scenario="Publishing video carousel to Instagram"
+                    )(self.uploadpost.publish_mixed_carousel)
+                    
+                    logger.info("Calling publish_mixed_carousel...")
+                    result = await publish_with_retry(items, translated_caption)
+                    logger.info(f"publish_mixed_carousel returned: {result}")
+                    
+                except Exception as e:
+                    logger.error(f"CAUGHT EXCEPTION in publish_mixed_carousel: {e}")
+                    logger.exception("Full traceback:")
+                    raise
                 
             else:
-                # Photo-only carousel
                 logger.info("Publishing PHOTO carousel")
                 media_data_list = [data for data, _ in items]
                 
@@ -200,7 +211,6 @@ class ContentProcessor:
             
             logger.info("Carousel published successfully to Instagram")
             
-            # Cleanup
             del self.carousel_groups[media_group_id]
             if media_group_id in self.carousel_captions:
                 del self.carousel_captions[media_group_id]
@@ -279,3 +289,32 @@ class ContentProcessor:
         except Exception as e:
             logger.error(f"Video processing failed: {str(e)}")
             raise
+```
+
+---
+
+## 🚀 Istruzioni per GitHub
+
+1. **Vai su GitHub** → tuo repository
+2. **Apri** `content_processor.py`
+3. **Edit** (✏️)
+4. **CTRL+A** → **CANC** (cancella tutto)
+5. **COPIA** tutto il codice qui sopra
+6. **INCOLLA** su GitHub
+7. **Commit message**: `Add debug logging for carousel publishing`
+8. **Commit changes**
+
+---
+
+## 📊 Cosa Cambierà nei Log
+
+Dopo questo aggiornamento, quando tenti di pubblicare un carousel misto vedrai:
+```
+Publishing MIXED carousel (photos + videos)
+Items to publish: [('photo', 121473), ('photo', 167550), ('photo', 408618), ('video', 3322860)]
+Calling publish_mixed_carousel...
+Item 1: Photo (121473 bytes)
+Item 2: Photo (167550 bytes)
+Item 3: Photo (408618 bytes)
+Item 4: Video (3322860 bytes) - converting to frames...
+[QUI VEDREMO L'ERRORE VERO!]
